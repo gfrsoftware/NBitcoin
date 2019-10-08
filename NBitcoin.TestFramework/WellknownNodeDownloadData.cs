@@ -1036,6 +1036,37 @@ namespace NBitcoin.Tests
 			};
 		}
 
+
+		public class CommutercoinNodeDownloadData
+		{
+			public NodeDownloadData v1_0_0_0_g = new NodeDownloadData()
+			{
+				Version = "1.0.0.0-g",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://download.litecoin.org/litecoin-{0}/win/litecoin-{0}-win64.zip",
+					Archive = "commutercoin-{0}-win64.zip",
+					Executable = "commutercoin-{0}/bin/commutercoind.exe",
+					Hash = "8060e9bface9bbdc22c74a2687b211c8b4e32fe03c0e6c537c12de0ff6f0813b"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://download.litecoin.org/litecoin-{0}/linux/litecoin-{0}-x86_64-linux-gnu.tar.gz",
+					Archive = "commutercoin-{0}-x86_64-linux-gnu.tar.gz",
+					Executable = "commutercoin-{0}/bin/commutercoind",
+					Hash = "9cab11ba75ea4fb64474d4fea5c5b6851f9a25fe9b1d4f7fc9c12b9f190fed07"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://download.litecoin.org/litecoin-{0}/osx/litecoin-{0}-osx64.tar.gz",
+					Archive = "commutercoin-{0}-osx64.tar.gz",
+					Executable = "commutercoin-{0}/bin/commutercoind",
+					Hash = "b93fa415c84bea1676d0b0ea819dd6e8e4f7b136167d89b18b63240b50757d4f"
+				},
+				UseSectionInConfigFile = true
+			};
+		}
+
 		public static GoByteNodeDownloadData GoByte
 		{
 			get; set;
@@ -1159,6 +1190,11 @@ namespace NBitcoin.Tests
 		{
 			get; set;
 		} = new StratisNodeDownloadData();
+
+		public static CommutercoinNodeDownloadData Commutercoin
+		{
+			get; set;
+		} = new CommutercoinNodeDownloadData();
 
 		public bool UseSectionInConfigFile { get; private set; }
 		public string AdditionalRegtestConfig { get; private set; }
