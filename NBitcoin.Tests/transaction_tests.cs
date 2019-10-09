@@ -2523,6 +2523,93 @@ namespace NBitcoin.Tests
 		{
 		}
 
+		class BrokenCoinSelector : ICoinSelector
+		{
+			private Dictionary<OutPoint, Coin> CoinsByOutpoint { get; }
+
+			public BrokenCoinSelector(IEnumerable<Coin> coins)
+			{
+				CoinsByOutpoint = coins.ToDictionary(x => x.Outpoint);
+			}
+
+			public IEnumerable<ICoin> Select(IEnumerable<ICoin> coins, IMoney target)
+			{
+				var totalOutAmount = (Money)target;
+				var unspentCoins = coins.Select(c => CoinsByOutpoint[c.Outpoint]).ToArray();
+				var coinsToSpend = new HashSet<Coin>();
+
+				foreach (var coin in unspentCoins.OrderByDescending(x => x.Amount))
+				{
+					coinsToSpend.Add(coin);
+					if (coinsToSpend.Select(x => x.Amount).Sum() >= totalOutAmount)
+					{
+						// Add if we can find address reuse.
+						foreach (var c in unspentCoins
+							.Except(coinsToSpend) // So we're choosing from the non selected coins.
+							.Where(x => coinsToSpend.Any(y => y.ScriptPubKey == x.ScriptPubKey)))// Where the selected coins contains the same script.
+						{
+							coinsToSpend.Add(c);
+						}
+
+						break;
+					}
+				}
+				return coinsToSpend;
+			}
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
+		// Fix https://github.com/MetacoSA/NBitcoin/pull/745#issuecomment-534946500
+		public void TransactionBuilderDoesNotRunForever()
+		{
+			var network = Network.TestNet;
+			var scriptPubKey = new Key().ScriptPubKey;
+			var amount = Money.Coins(0.01m);
+			var inputs = new[]{
+				(new Coin(RandOutpoint(), new TxOut(amount, scriptPubKey ))),
+				(new Coin(RandOutpoint(), new TxOut(amount, scriptPubKey))),
+				(new Coin(RandOutpoint(), new TxOut(amount, new Key().ScriptPubKey ))),  // this is different script.
+				(new Coin(RandOutpoint(), new TxOut(amount, scriptPubKey)))};
+
+			var change = new Key().PubKey.GetSegwitAddress(network).ScriptPubKey;
+			var builder = network.CreateTransactionBuilder();
+			builder.SetCoinSelector(new BrokenCoinSelector(inputs));
+			builder.AddCoins(inputs);
+			builder.Send(new Key().PubKey.GetSegwitAddress(network), Money.Coins(0.015m));
+			builder.SetChange(change);
+			builder.SendEstimatedFees(new FeeRate(10m));
+			var tx = builder.BuildTransaction(false);
+			Assert.Contains(tx.Outputs, output => output.ScriptPubKey == change);
+			Assert.Equal(3, tx.Inputs.Count);
+		}
+
+		[Fact]
+		// Fix https://github.com/MetacoSA/NBitcoin/issues/746
+		public void TransactionBuilderDoesNotCreateInvalidTx()
+		{
+			var masterKey = new ExtKey();
+			var keys = Enumerable.Range(0, 4).Select(x => masterKey.Derive((uint)x)).ToArray();
+			var inputs = new[]{
+		(new Coin(RandOutpoint(), new TxOut(Money.Coins(0.02510227m), keys[0].PrivateKey.PubKey.WitHash.ScriptPubKey))),
+		(new Coin(RandOutpoint(), new TxOut(Money.Coins(0.94979264m), keys[1].PrivateKey.PubKey.WitHash.ScriptPubKey))),
+		(new Coin(RandOutpoint(), new TxOut(Money.Coins(0.32476287m), keys[2].PrivateKey.PubKey.WitHash.ScriptPubKey))),
+		(new Coin(RandOutpoint(), new TxOut(Money.Coins(0.64993041m), keys[3].PrivateKey.PubKey.WitHash.ScriptPubKey)))};
+
+			TransactionBuilder builder = Network.CreateTransactionBuilder();
+			builder.SetCoinSelector(new BrokenCoinSelector(inputs));
+			builder.AddCoins(inputs);
+			builder.SendAllRemaining(new Key().ScriptPubKey);
+			builder.SendEstimatedFees(new FeeRate(10m));
+
+			var psbt = builder.BuildPSBT(false);
+			builder = builder.AddKeys(keys.ToArray());
+			builder.SignPSBT(psbt);
+			psbt.Finalize();
+
+			psbt.TryGetEstimatedFeeRate(out FeeRate actualFeeRate);
+		}
+
 		protected virtual BigInteger CalculateE(BigInteger n, byte[] message)
 		{
 			int messageBitLength = message.Length * 8;
