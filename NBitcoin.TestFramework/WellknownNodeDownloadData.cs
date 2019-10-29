@@ -1001,6 +1001,7 @@ namespace NBitcoin.Tests
 			};
 		}
 
+<<<<<<< HEAD
         public class ZCoinNodeDownloadData
         {
             public NodeDownloadData v0_13_8_3 = new NodeDownloadData()
@@ -1035,6 +1036,42 @@ namespace NBitcoin.Tests
         /// Should be updated to use official release once it is deployed.
         /// </summary>
         public class StratisNodeDownloadData
+=======
+		public class ZCoinNodeDownloadData
+		{
+			public NodeDownloadData v0_13_8_3 = new NodeDownloadData()
+			{
+				Version = "0.13.8.3",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/zcoinofficial/zcoin/releases/download/v{0}/zcoin-{0}-win64.zip",
+					Archive = "zcoin-{0}-win64.zip",
+					Executable = "zcoin-{0}/bin/zcoind.exe",
+					Hash = "f0cca1fca157c8549cdfdbd2587d2dfad9234a63df193f666d8a9d77df5a8eb3"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/zcoinofficial/zcoin/releases/download/v{0}/zcoin-{0}-x86_64-linux-gnu.tar.gz",
+					Archive = "zcoin-{0}-x86_64-linux-gnu.tar.gz",
+					Executable = "zcoin-{0}/bin/zcoind",
+					Hash = "364ea09583b46866a7d84b924355e41cf5d8f2f1a54f8abb6c3f10b63d1933f1"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/zcoinofficial/zcoin/releases/download/v{0}/zcoin-{0}-osx64.tar.gz",
+					Archive = "zcoin-{0}-osx64.tar.gz",
+					Executable = "zcoin-{0}/bin/zcoind",
+					Hash = "9d7ae6cdc6afdecfbf6425e4e652baeb7c6b440c90dc8e7ac1cb30a7f7e0574e"
+				}
+			};
+		}
+
+		/// <summary>
+		/// Using Stratis C# full node.
+		/// Should be updated to use official release once it is deployed.
+		/// </summary>
+		public class StratisNodeDownloadData
+>>>>>>> pr/4
 		{
 			public NodeDownloadData v3_0_0 = new NodeDownloadData()
 			{
@@ -1220,6 +1257,7 @@ namespace NBitcoin.Tests
 			get; set;
 		} = new StratisNodeDownloadData();
 
+<<<<<<< HEAD
         public static ZCoinNodeDownloadData ZCoin
         {
             get; set;
@@ -1229,6 +1267,12 @@ namespace NBitcoin.Tests
 		{
 			get; set;
 		} = new CommutercoinNodeDownloadData();
+=======
+		public static ZCoinNodeDownloadData ZCoin
+		{
+			get; set;
+		} = new ZCoinNodeDownloadData();
+>>>>>>> pr/4
 
 		public bool UseSectionInConfigFile { get; private set; }
 		public string AdditionalRegtestConfig { get; private set; }
