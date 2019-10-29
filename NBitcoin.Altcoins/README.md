@@ -21,10 +21,7 @@ Currently supported altcoins are:
 * Bitcoinplus
 * Chaincoin
 * ZCoin
-<<<<<<< HEAD
 * Commutercoin
-=======
->>>>>>> pr/4
 
 ## How to use?
 
