@@ -20,6 +20,7 @@ Currently supported altcoins are:
 * Koto
 * Bitcoinplus
 * Chaincoin
+* ZCoin
 * Commutercoin
 
 ## How to use?
