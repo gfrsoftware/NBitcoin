@@ -15,12 +15,10 @@ namespace NBitcoin.JsonConverters
 #endif
 	class PSBTJsonConverter : JsonConverter
 	{
-		public PSBTJsonConverter()
-		{
-
-		}
 		public PSBTJsonConverter(Network network)
 		{
+			if (network == null)
+				throw new ArgumentNullException(nameof(network));
 			Network = network;
 		}
 
@@ -37,10 +35,10 @@ namespace NBitcoin.JsonConverters
 		{
 			if (reader.TokenType == JsonToken.Null)
 				return null;
-
+			reader.AssertJsonType(JsonToken.String);
 			try
 			{
-				return PSBT.Parse((string)reader.Value, Network ?? Network.Main);
+				return PSBT.Parse((string)reader.Value, Network);
 			}
 			catch (EndOfStreamException)
 			{

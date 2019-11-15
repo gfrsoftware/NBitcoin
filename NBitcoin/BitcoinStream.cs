@@ -233,7 +233,7 @@ namespace NBitcoin
 				data = obj;
 		}
 
-		public void ReadWrite<T>(ref List<T> list) where T : IBitcoinSerializable, new()
+		public void ReadWrite<T>(ref List<T> list) where T : IBitcoinSerializable
 		{
 			ReadWriteList<List<T>, T>(ref list);
 		}
@@ -247,7 +247,7 @@ namespace NBitcoin
 
 		private void ReadWriteList<TList, TItem>(ref TList data)
 			where TList : List<TItem>, new()
-			where TItem : IBitcoinSerializable, new()
+			where TItem : IBitcoinSerializable
 		{
 			var dataArray = data == null ? null : data.ToArray();
 			if (Serializing && dataArray == null)
@@ -259,6 +259,24 @@ namespace NBitcoin
 			{
 				if (data == null)
 					data = new TList();
+				else
+					data.Clear();
+				data.AddRange(dataArray);
+			}
+		}
+
+		public  void ReadWriteListBytes(ref List<byte[]> data)
+		{
+			var dataArray = data?.ToArray();
+			if (Serializing && dataArray == null)
+			{
+				dataArray = new byte[0][];
+			}
+			ReadWriteArray(ref dataArray);
+			if (!Serializing)
+			{
+				if (data == null)
+					data = new List<byte[]>();
 				else
 					data.Clear();
 				data.AddRange(dataArray);

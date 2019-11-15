@@ -650,7 +650,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject(key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network)),
-						PubKeys = new string[] { key.PubKey.ToString() }
+						PubKeys = new [] { key.PubKey }
 					}
 				};
 
@@ -664,7 +664,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						PubKeys = new string[] { key.PubKey.ToString() },
+						PubKeys = new[] { key.PubKey },
 						Internal = true
 					}
 				};
@@ -679,7 +679,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						PubKeys = new string[] { key.PubKey.ToString() }
+						PubKeys = new [] { key.PubKey }
 					}
 				};
 
@@ -693,7 +693,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { Address = key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network) },
-						Keys = new string[] { key.GetWif(network).ToString() }
+						Keys = new [] { key.GetWif(network) }
 					}
 				};
 
@@ -704,7 +704,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { Address = key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network) },
-						Keys = new string[] { key.GetWif(network).ToString() }
+						Keys = new [] { key.GetWif(network) }
 					}
 				};
 
@@ -721,7 +721,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { Address = key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network) },
-						Keys = new string[] { key.GetWif(network).ToString() },
+						Keys = new [] { key.GetWif(network) },
 						WatchOnly = true
 					}
 				};
@@ -736,7 +736,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						Keys = new string[] { key.GetWif(network).ToString() },
+						Keys = new [] { key.GetWif(network) },
 						Internal = true
 					}
 				};
@@ -751,7 +751,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						Keys = new string[] { key.GetWif(network).ToString() }
+						Keys = new [] { key.GetWif(network) }
 					}
 				};
 
@@ -781,7 +781,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { Address = key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network) },
-						PubKeys = new string[] { new Key().PubKey.ToString() }
+						PubKeys = new [] { new Key().PubKey }
 					}
 				};
 
@@ -795,7 +795,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						PubKeys = new string[] { new Key().PubKey.ToString() },
+						PubKeys = new [] { new Key().PubKey },
 						Internal = true
 					}
 				};
@@ -810,7 +810,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { Address = key.PubKey.GetAddress(ScriptPubKeyType.Legacy, network) },
-						Keys = new string[] { new Key().GetWif(network).ToString() }
+						Keys = new [] { new Key().GetWif(network) }
 					}
 				};
 
@@ -824,7 +824,7 @@ namespace NBitcoin.Tests
 					new ImportMultiAddress
 					{
 						ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject { ScriptPubKey = key.ScriptPubKey },
-						Keys = new string[] { new Key().GetWif(network).ToString() },
+						Keys = new [] { new Key().GetWif(network) },
 						Internal = true
 					}
 				};
@@ -1322,30 +1322,30 @@ namespace NBitcoin.Tests
 				node.Start();
 				var client = node.CreateRPCClient();
 
-				var keys = new Key[] { new Key(), new Key(), new Key() };
+				var keys = new Key[] { new Key(), new Key(), new Key() }.Select(k => k.GetWif(Network.RegTest)).ToArray();
 				var redeem = PayToMultiSigTemplate.Instance.GenerateScriptPubKey(3, keys.Select(ki => ki.PubKey).ToArray());
 				var funds = PSBTTests.CreateDummyFunds(Network.TestNet, keys, redeem);
 
 				// case1: PSBT from already fully signed tx
 				var tx = PSBTTests.CreateTxToSpendFunds(funds, keys, redeem, true, true);
-				var psbt = PSBT.FromTransaction(tx);
+				var psbt = PSBT.FromTransaction(tx, builder.Network);
 				psbt.AddCoins(funds);
 				CheckPSBTIsAcceptableByRealRPC(psbt.ToBase64(), client);
 
 				// but if we use rpc to convert tx to psbt, it will discard input scriptSig and ScriptWitness.
 				// So it will be acceptable by any other rpc.
-				psbt = PSBT.FromTransaction(tx.Clone());
+				psbt = PSBT.FromTransaction(tx.Clone(), builder.Network);
 				CheckPSBTIsAcceptableByRealRPC(psbt.ToBase64(), client);
 
 				// case2: PSBT from tx with script (but without signatures)
 				tx = PSBTTests.CreateTxToSpendFunds(funds, keys, redeem, true, false);
-				psbt = PSBT.FromTransaction(tx);
+				psbt = PSBT.FromTransaction(tx, builder.Network);
 				psbt.AddCoins(funds);
 				CheckPSBTIsAcceptableByRealRPC(psbt.ToBase64(), client);
 
 				// case3: PSBT from tx without script nor signatures.
 				tx = PSBTTests.CreateTxToSpendFunds(funds, keys, redeem, false, false);
-				psbt = PSBT.FromTransaction(tx);
+				psbt = PSBT.FromTransaction(tx, builder.Network);
 				// This time, it will not throw an error at the first place.
 				// Since sanity check for witness input will not complain about witness-script-without-witnessUtxo
 				CheckPSBTIsAcceptableByRealRPC(psbt.ToBase64(), client);
@@ -1415,11 +1415,11 @@ namespace NBitcoin.Tests
 				client.GenerateToAddress(1, tmpaddr.PubKey.GetAddress(node.Network));
 
 				// case 1: irrelevant psbt.
-				var keys = new Key[] { new Key(), new Key(), new Key() };
+				var keys = new Key[] { new Key(), new Key(), new Key() }.Select(k => k.GetWif(Network.RegTest)).ToArray();
 				var redeem = PayToMultiSigTemplate.Instance.GenerateScriptPubKey(3, keys.Select(ki => ki.PubKey).ToArray());
 				var funds = PSBTTests.CreateDummyFunds(Network.TestNet, keys, redeem);
 				var tx = PSBTTests.CreateTxToSpendFunds(funds, keys, redeem, true, true);
-				var psbt = PSBT.FromTransaction(tx)
+				var psbt = PSBT.FromTransaction(tx, builder.Network)
 					.AddTransactions(funds)
 					.AddScripts(redeem);
 				var case1Result = client.WalletProcessPSBT(psbt);
@@ -1432,7 +1432,7 @@ namespace NBitcoin.Tests
 				tx.Outputs.Add(new TxOut(Money.Coins(45), kOut)); // This has to be big enough since the wallet must use whole kinds of address.
 				var fundTxResult = client.FundRawTransaction(tx);
 				Assert.Equal(3, fundTxResult.Transaction.Inputs.Count);
-				var psbtFinalized = PSBT.FromTransaction(fundTxResult.Transaction);
+				var psbtFinalized = PSBT.FromTransaction(fundTxResult.Transaction, builder.Network);
 				var result = client.WalletProcessPSBT(psbtFinalized, false);
 				Assert.False(result.PSBT.CanExtractTransaction());
 				result = client.WalletProcessPSBT(psbtFinalized, true);
@@ -1444,7 +1444,7 @@ namespace NBitcoin.Tests
 				foreach (var coin in spendableCoins)
 					tx.Inputs.Add(coin.Outpoint);
 				tx.Outputs.Add(new TxOut(Money.Coins(45), kOut));
-				var psbtUnFinalized = PSBT.FromTransaction(tx);
+				var psbtUnFinalized = PSBT.FromTransaction(tx, builder.Network);
 
 				var type = SigHash.All;
 				// unsigned
@@ -1505,7 +1505,7 @@ namespace NBitcoin.Tests
 						new ImportMultiAddress()
 						{
 							ScriptPubKey = new ImportMultiAddress.ScriptPubKeyObject(multiAddresses[0]),
-							RedeemScript = script.ToHex(),
+							RedeemScript = script,
 							Internal = true,
 						},
 						/*

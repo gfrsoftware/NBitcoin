@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using System.Collections.Generic;
-using System.Text;
 using NBitcoin.Policy;
 
 namespace NBitcoin.Altcoins.Elements
@@ -10,7 +8,6 @@ namespace NBitcoin.Altcoins.Elements
 	public class ElementsConsensusFactory<TNetwork> : ConsensusFactory
 	{
 		public static ElementsConsensusFactory<TNetwork> Instance { get; } = new ElementsConsensusFactory<TNetwork>();
-
 		public override bool TryCreateNew(Type type, out IBitcoinSerializable result)
 		{
 			if (typeof(TxIn).GetTypeInfo().IsAssignableFrom(type.GetTypeInfo()))
@@ -27,11 +24,11 @@ namespace NBitcoin.Altcoins.Elements
 		}
 		public override BlockHeader CreateBlockHeader()
 		{
-			return new ElementsBlockHeader();
+			return new ElementsBlockHeader<TNetwork>();
 		}
 		public override Block CreateBlock()
 		{
-			return new ElementsBlock(new ElementsBlockHeader(), this);
+			return new ElementsBlock<TNetwork>((ElementsBlockHeader<TNetwork>) CreateBlockHeader());
 		}
 
 		public override Transaction CreateTransaction()
@@ -39,15 +36,19 @@ namespace NBitcoin.Altcoins.Elements
 			return new ElementsTransaction<TNetwork>();
 		}
 
-		protected override TransactionBuilder CreateTransactionBuilderCore()
+		protected override TransactionBuilder CreateTransactionBuilderCore(Network network)
 		{
-			var builder = new ElementsTransactionBuilder();
+			var builder = new ElementsTransactionBuilder(network);
 			builder.StandardTransactionPolicy.Strategy = new StandardElementsTransactionPolicyStrategy();
 			return builder;
 		}
 #pragma warning disable CS0618 // Type or member is obsolete
 		class ElementsTransactionBuilder : TransactionBuilder
 		{
+			public ElementsTransactionBuilder(Network network): base(network)
+			{
+
+			}
 			protected override void AfterBuild(Transaction transaction)
 			{
 				if (transaction.Outputs.OfType<ElementsTxOut>().All(o => !o.IsFee))

@@ -49,9 +49,13 @@ namespace NBitcoin
 		/// Parses the Base58 data (checking the network if specified), checks it represents the
 		/// correct type of item, and then returns the corresponding ExtKey.
 		/// </summary>
-		public static ExtKey Parse(string wif, Network expectedNetwork = null)
+		public static ExtKey Parse(string wif, Network expectedNetwork)
 		{
-			return Network.Parse<BitcoinExtKey>(wif, expectedNetwork).ExtKey;
+			if (expectedNetwork == null)
+				throw new ArgumentNullException(nameof(expectedNetwork));
+			if (wif == null)
+				throw new ArgumentNullException(nameof(wif));
+			return expectedNetwork.Parse<BitcoinExtKey>(wif).ExtKey;
 		}
 
 		private const int ChainCodeLength = 32;
@@ -269,15 +273,6 @@ namespace NBitcoin
 		}
 
 		public HDFingerprint ParentFingerprint
-		{
-			get
-			{
-				return parentFingerprint;
-			}
-		}
-
-		[Obsolete("Use ParentFingerprint instead. The Fingerprint of the HD key is actually the fingerprint of the parent public key, this field was not well named.")]
-		public HDFingerprint Fingerprint
 		{
 			get
 			{
