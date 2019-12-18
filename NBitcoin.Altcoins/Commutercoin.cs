@@ -1,6 +1,7 @@
 ﻿using NBitcoin.DataEncoders;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 
 namespace NBitcoin.Altcoins
@@ -75,10 +76,10 @@ namespace NBitcoin.Altcoins
 		/// </summary>
 		public class CommutercoinMainnetAddressStringParser : NetworkStringParser
 		{
-			public override bool TryParse<T>(string str, Network network, out T result)
+			public override bool TryParse(string str, Network network, Type targetType, out IBitcoinString result)
 			{
 				// Private Key
-				if(str.StartsWith("????", StringComparison.OrdinalIgnoreCase) && typeof(T) == typeof(BitcoinExtKey))
+				if(str.StartsWith("????", StringComparison.OrdinalIgnoreCase) && targetType.GetTypeInfo().IsAssignableFrom(typeof(BitcoinExtKey).GetTypeInfo()))
 				{
 					try
 					{
@@ -87,7 +88,7 @@ namespace NBitcoin.Altcoins
 						decoded[1] = 0x88;
 						decoded[2] = 0xB2;
 						decoded[3] = 0xE4;
-						result = (T)(object)new BitcoinExtKey(Encoders.Base58Check.EncodeData(decoded), network);
+						result = new BitcoinExtKey(Encoders.Base58Check.EncodeData(decoded), network);
 						return true;
 					}
 					catch
@@ -96,7 +97,7 @@ namespace NBitcoin.Altcoins
 					}
 				}
 				// Public Key
-				if (str.StartsWith("????", StringComparison.OrdinalIgnoreCase) && typeof(T) == typeof(BitcoinExtPubKey))
+				if (str.StartsWith("????", StringComparison.OrdinalIgnoreCase) && targetType.GetTypeInfo().IsAssignableFrom(typeof(BitcoinExtPubKey).GetTypeInfo()))
 				{
 					try
 					{
@@ -105,7 +106,7 @@ namespace NBitcoin.Altcoins
 						decoded[1] = 0x35;
 						decoded[2] = 0x87;
 						decoded[3] = 0xCF;
-						result = (T)(object)new BitcoinExtKey(Encoders.Base58Check.EncodeData(decoded), network);
+						result = new BitcoinExtPubKey(Encoders.Base58Check.EncodeData(decoded), network);
 						return true;
 					}
 					catch
