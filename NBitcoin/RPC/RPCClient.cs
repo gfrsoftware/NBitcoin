@@ -16,6 +16,7 @@ using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static NBitcoin.RPC.BlockchainInfo;
 
 namespace NBitcoin.RPC
 {
@@ -647,6 +648,23 @@ namespace NBitcoin.RPC
 		}
 
 		/// <summary>
+		/// Returns the total uptime of the server.
+		/// </summary>
+		public TimeSpan Uptime()
+		{
+			return UptimeAsync().GetAwaiter().GetResult();
+		}
+
+		/// <summary>
+		/// Returns the total uptime of the server.
+		/// </summary>
+		public async Task<TimeSpan> UptimeAsync()
+		{
+			var res = await SendCommandAsync(RPCOperations.uptime).ConfigureAwait(false);
+			return TimeSpan.FromSeconds(res.Result.Value<double>());
+		}
+
+		/// <summary>
 		/// Scans the unspent transaction output set for entries that match certain output descriptors.
 		/// </summary>
 		/// <param name="descriptorObjects"></param>
@@ -1146,6 +1164,51 @@ namespace NBitcoin.RPC
 				}
 			});
 
+			JToken softForksToken = result["softforks"];
+			List<SoftFork> softForks;
+			List<Bip9SoftFork> bip9SoftForks;
+			try
+			{
+				softForks = softForksToken
+					?.Cast<JProperty>()
+					?.Select(x =>
+						new SoftFork
+						{
+							Bip = x.Name,
+							ForkType = x.Value.Value<string>("type"),
+							Activated = x.Value.Value<bool>("activated"),
+							Height = x.Value.Value<uint>("height")
+						})
+					?.ToList();
+
+				bip9SoftForks = Enumerable.Empty<Bip9SoftFork>().ToList();
+			}
+			catch (InvalidCastException)
+			{
+				// Then the client may be pre Biitcoin Core 19, so Ensure backwards compatibility.
+				softForks = softForksToken
+					?.Cast<JObject>()
+					?.Select(x =>
+						new SoftFork
+						{
+							Bip = x.Value<string>("id")
+						})
+					?.ToList();
+
+				bip9SoftForks = result["bip9_softforks"]
+					?.Cast<JProperty>()
+					?.Select(x =>
+						new Bip9SoftFork
+						{
+							Name = x.Name,
+							Status = x.Value.Value<string>("status"),
+							StartTime = epochToDtateTimeOffset(x.Value.Value<long>("startTime")),
+							Timeout = epochToDtateTimeOffset(x.Value.Value<long>("timeout")),
+							SinceHeight = x.Value.Value<ulong?>("since") ?? 0
+						})
+					?.ToList();
+			}
+
 			var blockchainInfo = new BlockchainInfo
 			{
 				Chain = Network.GetNetwork(result.Value<string>("chain")),
@@ -1159,14 +1222,8 @@ namespace NBitcoin.RPC
 				ChainWork = new uint256(result.Value<string>("chainwork")),
 				SizeOnDisk = result.Value<ulong?>("size_on_disk") ?? 0,
 				Pruned = result.Value<bool>("pruned"),
-				SoftForks = result["softforks"]?.Cast<JProperty>().Select(x =>
-					new BlockchainInfo.SoftFork
-					{
-						Bip = x.Name,
-						ForkType = x.Value.Value<string>("type"),
-						Activated = x.Value.Value<bool>("activated"),
-						Height = x.Value.Value<uint>("height"),
-					}).ToList()
+				SoftForks = softForks,
+				Bip9SoftForks = bip9SoftForks
 			};
 
 			return blockchainInfo;
@@ -1298,15 +1355,22 @@ namespace NBitcoin.RPC
 			return uint256.Parse(resp.Result.ToString());
 		}
 
+		/// <summary>
+		/// Retrieve a BIP 157 content filter for a particular block.
+		/// </summary>
+		/// <param name="blockHash">The hash of the block.</param>
 		public BlockFilter GetBlockFilter(uint256 blockHash)
 		{
-			var resp = SendCommand("getblockfilter", blockHash, "basic");
-			return ParseCompactFilter(resp);
+			return GetBlockFilterAsync(blockHash).GetAwaiter().GetResult();
 		}
 
+		/// <summary>
+		/// Retrieve a BIP 157 content filter for a particular block.
+		/// </summary>
+		/// <param name="blockHash">The hash of the block.</param>
 		public async Task<BlockFilter> GetBlockFilterAsync(uint256 blockHash)
 		{
-			var resp = await SendCommandAsync("getfilter", blockHash, "basic").ConfigureAwait(false);
+			var resp = await SendCommandAsync(RPCOperations.getblockfilter, blockHash, "basic").ConfigureAwait(false);
 			return ParseCompactFilter(resp);
 		}
 
@@ -1397,6 +1461,8 @@ namespace NBitcoin.RPC
 			};
 		}
 
+		private FeeRate AbsurdlyHighFee { get; } = new FeeRate(10_000L);
+
 		public MempoolAcceptResult TestMempoolAccept(Transaction transaction, bool allowHighFees = false)
 		{
 			return TestMempoolAcceptAsync(transaction, allowHighFees).GetAwaiter().GetResult();
@@ -1404,8 +1470,7 @@ namespace NBitcoin.RPC
 
 		public async Task<MempoolAcceptResult> TestMempoolAcceptAsync(Transaction transaction, bool allowHighFees = false)
 		{
-			var absurdlyHighFee = new FeeRate(10_000L);
-			var maxFeeRate = allowHighFees ?  absurdlyHighFee : null;
+			var maxFeeRate = allowHighFees ? AbsurdlyHighFee : null;
 			return await TestMempoolAcceptAsync(transaction, maxFeeRate).ConfigureAwait(false);
 		}
 
@@ -1424,14 +1489,23 @@ namespace NBitcoin.RPC
 
 		public async Task<MempoolAcceptResult> TestMempoolAcceptAsync(Transaction transaction, FeeRate maxFeeRate = null)
 		{
-			RPCResponse response = null;
-			if (maxFeeRate?.FeePerK.ToDecimal(MoneyUnit.Satoshi) is decimal feeRate)
+			RPCResponse response;
+			if (maxFeeRate is FeeRate feeRate)
 			{
-				response = await SendCommandAsync("testmempoolaccept", new[] { transaction.ToHex() }, feeRate).ConfigureAwait(false);
+				try
+				{
+					var feeRateDecimal = feeRate.FeePerK.ToDecimal(MoneyUnit.Satoshi);
+					response = await SendCommandAsync(RPCOperations.testmempoolaccept, new[] { transaction.ToHex() }, feeRateDecimal).ConfigureAwait(false);
+				}
+				catch (RPCException ex) when (ex.Message == "Expected type bool, got number")
+				{
+					var allowHighFees = feeRate >= AbsurdlyHighFee ? true : false;
+					response = await SendCommandAsync(RPCOperations.testmempoolaccept, new[] { transaction.ToHex() }, allowHighFees).ConfigureAwait(false);
+				}
 			}
 			else
 			{
-				response = await SendCommandAsync("testmempoolaccept", new[] { new[] { transaction.ToHex() } }).ConfigureAwait(false);
+				response = await SendCommandAsync(RPCOperations.testmempoolaccept, new[] { new[] { transaction.ToHex() } }).ConfigureAwait(false);
 			}
 
 			var first = response.Result[0];

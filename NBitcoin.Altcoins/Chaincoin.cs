@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using NBitcoin.Altcoins.HashX11;
 using NBitcoin.Crypto;
@@ -72,7 +73,35 @@ namespace NBitcoin.Altcoins
 		{
 			RegisterDefaultCookiePath("Chaincoin", new FolderName() { TestnetFolder = "testnet4" });
 		}
-
+		public class ChaincoinMainnetAddressStringParser : NetworkStringParser
+		{
+			public override bool TryParse(string str, Network network, Type targetType, out IBitcoinString result)
+			{
+				if (str.StartsWith("xprv", StringComparison.OrdinalIgnoreCase) && targetType.GetTypeInfo().IsAssignableFrom(typeof(BitcoinExtKey).GetTypeInfo()))
+				{
+					try
+					{
+						result = new BitcoinExtKey(str, network);
+						return true;
+					}
+					catch
+					{
+					}
+				}
+				if (str.StartsWith("xpub", StringComparison.OrdinalIgnoreCase) && targetType.GetTypeInfo().IsAssignableFrom(typeof(BitcoinExtPubKey).GetTypeInfo()))
+				{
+					try
+					{
+						result = new BitcoinExtPubKey(str, network);
+						return true;
+					}
+					catch
+					{
+					}
+				}
+				return base.TryParse(str, network, targetType, out result);
+			}
+		}
 		static uint256 GetPoWHash(BlockHeader header)
 		{
 			var headerBytes = header.ToBytes();
@@ -109,6 +138,7 @@ namespace NBitcoin.Altcoins
 			.SetBase58Bytes(Base58Type.EXT_SECRET_KEY, new byte[] { 0x04, 0x88, 0xAD, 0xE4 })
 			.SetBech32(Bech32Type.WITNESS_PUBKEY_ADDRESS, Encoders.Bech32("chc"))
 			.SetBech32(Bech32Type.WITNESS_SCRIPT_ADDRESS, Encoders.Bech32("chc"))
+			.SetNetworkStringParser(new ChaincoinMainnetAddressStringParser())
 			.SetMagic(0x037AD2A3)
 			.SetPort(11994)
 			.SetRPCPort(11995)
@@ -125,7 +155,7 @@ namespace NBitcoin.Altcoins
 				new DNSSeedData("seed4.chaincoin.org", "seed4.chaincoin.org")
 			})
 			.AddSeeds(new NetworkAddress[0])
-			.SetGenesis("010000000000000000000000000000000000000000000000000000000000000000000000887c5c20f3075215e164877a6de732695a13c0f8ec0fcf6296fa942487f96efadae5494dffff7f20000000000101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d01044531382d30312d3134202d20416e74692d667261636b696e672063616d706169676e65727320636861696e207468656d73656c76657320746f20706574726f6c2070756d7073ffffffff0100105e5f00000000434104becedf6ebadd4596964d890f677f8d2e74fdcc313c6416434384a66d6d8758d1c92de272dc6713e4a81d98841dfdfdc95e204ba915447d2fe9313435c78af3e8ac00000000");
+			.SetGenesis("010000000000000000000000000000000000000000000000000000000000000000000000887c5c20f3075215e164877a6de732695a13c0f8ec0fcf6296fa942487f96efa0ce9da52ffff0f1e43cc217d0101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d01044531382d30312d3134202d20416e74692d667261636b696e672063616d706169676e65727320636861696e207468656d73656c76657320746f20706574726f6c2070756d7073ffffffff0100105e5f00000000434104becedf6ebadd4596964d890f677f8d2e74fdcc313c6416434384a66d6d8758d1c92de272dc6713e4a81d98841dfdfdc95e204ba915447d2fe9313435c78af3e8ac00000000");
 			return builder;
 		}
 		

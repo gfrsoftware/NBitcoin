@@ -12,9 +12,8 @@
 		<RepositoryType>git</RepositoryType>
 	</PropertyGroup>
 	<PropertyGroup>
-		<Version Condition=" '$(Version)' == '' ">5.0.12</Version>
+		<Version Condition=" '$(Version)' == '' ">5.0.13</Version>
 		<LangVersion>8.0</LangVersion>
-  <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>

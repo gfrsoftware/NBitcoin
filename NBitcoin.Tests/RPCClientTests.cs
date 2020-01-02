@@ -372,6 +372,27 @@ namespace NBitcoin.Tests
 			}
 		}
 
+		// Test it still works with 0.18.1
+		[Fact]
+		public async Task CanGetBlockchainInfoWithCore0181()
+		{
+			using (var builder = NodeBuilderEx.Create(NodeDownloadData.Bitcoin.v0_18_1))
+			{
+				var rpc = builder.CreateNode().CreateRPCClient();
+				builder.StartAll();
+				var response = await rpc.GetBlockchainInfoAsync();
+
+				Assert.Equal(builder.Network, response.Chain);
+				Assert.Equal(builder.Network.GetGenesis().GetHash(), response.BestBlockHash);
+
+				Assert.Contains(response.Bip9SoftForks, x => x.Name == "segwit");
+				Assert.Contains(response.Bip9SoftForks, x => x.Name == "csv");
+				Assert.Contains(response.SoftForks, x => x.Bip == "bip34");
+				Assert.Contains(response.SoftForks, x => x.Bip == "bip65");
+				Assert.Contains(response.SoftForks, x => x.Bip == "bip66");
+			}
+		}
+
 		[Fact]
 		public void CanGetTransactionInfo()
 		{
@@ -1079,7 +1100,7 @@ namespace NBitcoin.Tests
 		}
 
 		[Fact]
-		public void GetFilter()
+		public async Task GetBlockFilterAsync()
 		{
 			using (var builder = NodeBuilderEx.Create())
 			{
@@ -1089,19 +1110,22 @@ namespace NBitcoin.Tests
 				node.Generate(101);
 
 				var prevFilterHeader = uint256.Zero;
-				for(var height = 0; height < 101; height++)
+				for (var height = 0; height < 101; height++)
 				{
 					var block = rpc.GetBlock(height);
 					var blockHash = block.GetHash();
 					var blockFilter = rpc.GetBlockFilter(blockHash);
+					var sameFilter = await rpc.GetBlockFilterAsync(blockHash);
+					Assert.Equal(blockFilter.Header, sameFilter.Header);
+					Assert.Equal(blockFilter.Filter.ToString(), sameFilter.Filter.ToString());
 
 					Assert.Equal(blockFilter.Header, blockFilter.Filter.GetHeader(prevFilterHeader));
 
 					byte[] FilterKey(uint256 hash) => hash.ToBytes().SafeSubarray(0, 16);
 					var coinbaseTx = block.Transactions[0];
 					var minerScriptPubKey = coinbaseTx.Outputs[0].ScriptPubKey;
-					Assert.True(blockFilter.Filter.MatchAny(new[] { minerScriptPubKey.ToBytes() }, FilterKey(blockHash) ));
-					Assert.False(blockFilter.Filter.MatchAny(new[] { RandomUtils.GetBytes(20) }, FilterKey(blockHash) ));
+					Assert.True(blockFilter.Filter.MatchAny(new[] { minerScriptPubKey.ToBytes() }, FilterKey(blockHash)));
+					Assert.False(blockFilter.Filter.MatchAny(new[] { RandomUtils.GetBytes(20) }, FilterKey(blockHash)));
 
 					prevFilterHeader = blockFilter.Header;
 				}
@@ -1129,6 +1153,40 @@ namespace NBitcoin.Tests
 				Assert.False(result.IsAllowed);
 				Assert.Equal(Protocol.RejectCode.NONSTANDARD, result.RejectCode);
 				Assert.Equal("bad-txns-nonstandard-inputs", result.RejectReason);
+
+				var signedTx = rpc.SignRawTransactionWithWallet(new SignRawTransactionRequest()
+				{
+					Transaction = tx
+				});
+
+				result = rpc.TestMempoolAccept(signedTx.SignedTransaction, false);
+				Assert.True(result.IsAllowed);
+				Assert.Equal((Protocol.RejectCode)0, result.RejectCode);
+				Assert.Equal(string.Empty, result.RejectReason);
+			}
+		}
+
+		[Fact]
+		public void CanTestMempoolAcceptWithCore0181()
+		{
+			using (var builder = NodeBuilderEx.Create(NodeDownloadData.Bitcoin.v0_18_1))
+			{
+				var node = builder.CreateNode();
+				var rpc = node.CreateRPCClient();
+				builder.StartAll();
+				node.Generate(101);
+
+				var coins = rpc.ListUnspent();
+				var coin = coins[0];
+				var fee = Money.Coins(0.0001m);
+				var tx = Transaction.Create(node.Network);
+				tx.Inputs.Add(coin.OutPoint);
+				tx.Outputs.Add(tx.Outputs.CreateNewTxOut(coin.Amount - fee, new Key().PubKey.Hash.ScriptPubKey));
+
+				var result = rpc.TestMempoolAccept(tx, new FeeRate(1.0m));
+				Assert.False(result.IsAllowed);
+				Assert.Equal(Protocol.RejectCode.INVALID, result.RejectCode);
+				Assert.Equal("mandatory-script-verify-flag-failed (Operation not valid with the current stack size)", result.RejectReason);
 
 				var signedTx = rpc.SignRawTransactionWithWallet(new SignRawTransactionRequest()
 				{
@@ -1312,6 +1370,20 @@ namespace NBitcoin.Tests
 					if (File.Exists(filePath))
 						File.Delete(filePath);
 				}
+			}
+		}
+
+		[Fact]
+		public async Task CanQueryUptimeAsync()
+		{
+			using (var builder = NodeBuilderEx.Create())
+			{
+				var node = builder.CreateNode();
+				node.Start();
+				var rpc = node.CreateRPCClient();
+				var uptime1 = rpc.Uptime();
+				var uptime2 = await rpc.UptimeAsync();
+				Assert.Equal(uptime1.TotalSeconds, uptime2.TotalSeconds, 3);
 			}
 		}
 

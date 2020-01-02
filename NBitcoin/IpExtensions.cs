@@ -100,10 +100,10 @@ namespace NBitcoin
 			return (bytes[15 - 15] == 0x20 && bytes[15 - 14] == 0x02);
 		}
 
+		readonly static byte[] pchRFC6052 = new byte[] { 0, 0x64, 0xFF, 0x9B, 0, 0, 0, 0, 0, 0, 0, 0 };
 		public static bool IsRFC6052(this IPAddress address)
 		{
 			var bytes = address.GetAddressBytes();
-			byte[] pchRFC6052 = new byte[] { 0, 0x64, 0xFF, 0x9B, 0, 0, 0, 0, 0, 0, 0, 0 };
 			return ((Utils.ArrayEqual(bytes, 0, pchRFC6052, 0, pchRFC6052.Length) ? 0 : 1) == 0);
 		}
 
@@ -113,10 +113,10 @@ namespace NBitcoin
 			return (bytes[15 - 15] == 0x20 && bytes[15 - 14] == 0x01 && bytes[15 - 13] == 0 && bytes[15 - 12] == 0);
 		}
 
+		readonly static byte[] pchRFC4862 = new byte[] { 0xFE, 0x80, 0, 0, 0, 0, 0, 0 };
 		public static bool IsRFC4862(this IPAddress address)
 		{
 			var bytes = address.GetAddressBytes();
-			byte[] pchRFC4862 = new byte[] { 0xFE, 0x80, 0, 0, 0, 0, 0, 0 };
 			return ((Utils.ArrayEqual(bytes, 0, pchRFC4862, 0, pchRFC4862.Length) ? 0 : 1) == 0);
 		}
 
@@ -125,11 +125,10 @@ namespace NBitcoin
 			var bytes = address.GetAddressBytes();
 			return ((bytes[15 - 15] & 0xFE) == 0xFC);
 		}
-
+		readonly static byte[] pchRFC6145 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0 };
 		public static bool IsRFC6145(this IPAddress address)
 		{
 			var bytes = address.GetAddressBytes();
-			byte[] pchRFC6145 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0 };
 			return ((Utils.ArrayEqual(bytes, 0, pchRFC6145, 0, pchRFC6145.Length) ? 0 : 1) == 0);
 		}
 
@@ -210,7 +209,7 @@ namespace NBitcoin
 			return vchRet.ToArray();
 		}
 
-		static byte[] pchOnionCat = new byte[] { 0xFD, 0x87, 0xD8, 0x7E, 0xEB, 0x43 };
+		static readonly byte[] pchOnionCat = new byte[] { 0xFD, 0x87, 0xD8, 0x7E, 0xEB, 0x43 };
 		public static bool IsTor(this IPAddress address)
 		{
 			var bytes = address.GetAddressBytes();
@@ -436,6 +435,7 @@ namespace NBitcoin
 
 		}
 
+		readonly static byte[] pchLocal = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
 		public static bool IsLocal(this IPAddress address)
 		{
 			address = address.EnsureIPv6();
@@ -445,7 +445,6 @@ namespace NBitcoin
 				return true;
 
 			// IPv6 loopback (::1/128)
-			byte[] pchLocal = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
 			if ((Utils.ArrayEqual(bytes, 0, pchLocal, 0, 16) ? 0 : 1) == 0)
 				return true;
 
@@ -472,12 +471,14 @@ namespace NBitcoin
 											address.IsRFC4843() || (!allowLocal && address.IsLocal())
 											);
 		}
+		static readonly byte[] ipNone = new byte[16];
+		static readonly byte[] inadddr_none = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF };
+		static readonly byte[] ipNone_v4 = new byte[4];
 		public static bool IsValid(this IPAddress address)
 		{
 			address = address.EnsureIPv6();
 			var ip = address.GetAddressBytes();
 			// unspecified IPv6 address (::/128)
-			byte[] ipNone = new byte[16];
 			if ((Utils.ArrayEqual(ip, 0, ipNone, 0, 16) ? 0 : 1) == 0)
 				return false;
 
@@ -488,11 +489,11 @@ namespace NBitcoin
 			if (address.IsIPv4())
 			{
 				//// INADDR_NONE
-				if (Utils.ArrayEqual(ip, 12, new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }, 0, 4))
+				if (Utils.ArrayEqual(ip, 12, inadddr_none, 0, 4))
 					return false;
 
 				//// 0
-				if (Utils.ArrayEqual(ip, 12, new byte[] { 0x0, 0x0, 0x0, 0x0 }, 0, 4))
+				if (Utils.ArrayEqual(ip, 12, ipNone_v4, 0, 4))
 					return false;
 			}
 
