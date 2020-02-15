@@ -5,6 +5,7 @@ Currently supported altcoins are:
 * BCash
 * BGold
 * BitCore
+* Commutercoin
 * Dash
 * Dogecoin
 * Dystem
@@ -23,7 +24,6 @@ Currently supported altcoins are:
 * Chaincoin
 * ZCoin
 * DogeCash
-* Commutercoin
 
 ## How to use?
 
