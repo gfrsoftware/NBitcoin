@@ -1,5 +1,4 @@
 ﻿using NBitcoin.Altcoins.Elements;
-using NBitcoin.BouncyCastle.Math;
 using NBitcoin.Crypto;
 using NBitcoin.DataEncoders;
 using NBitcoin.OpenAsset;
@@ -2550,6 +2549,7 @@ namespace NBitcoin.Tests
 			TransactionBuilder builder = Network.CreateTransactionBuilder();
 			builder.StandardTransactionPolicy = EasyPolicy;
 			builder.AddCoins(funding.Outputs.AsCoins());
+			builder.Verify(spending, out var errs);
 			Assert.True(builder.Verify(spending));
 
 			foreach (var input in spending.Inputs.AsIndexedInputs())
@@ -2968,24 +2968,6 @@ namespace NBitcoin.Tests
 			psbt.Finalize();
 
 			psbt.TryGetEstimatedFeeRate(out FeeRate actualFeeRate);
-		}
-
-		protected virtual BigInteger CalculateE(BigInteger n, byte[] message)
-		{
-			int messageBitLength = message.Length * 8;
-			BigInteger trunc = new BigInteger(1, message);
-
-			if (n.BitLength < messageBitLength)
-			{
-				trunc = trunc.ShiftRight(messageBitLength - n.BitLength);
-			}
-
-			return trunc;
-		}
-
-		private ECDSASignature ToPositive(ECDSASignature sig)
-		{
-			return new ECDSASignature(new BouncyCastle.Math.BigInteger(1, sig.R.ToByteArray()), new BouncyCastle.Math.BigInteger(1, sig.S.ToByteArray()));
 		}
 
 		public enum HashModification

@@ -1,6 +1,8 @@
 ﻿using NBitcoin.Crypto;
 using NBitcoin.DataEncoders;
+#if !NO_BC
 using NBitcoin.BouncyCastle.Math;
+#endif
 using System;
 using System.Linq;
 
@@ -197,8 +199,14 @@ namespace NBitcoin
 		/// </summary>
 		public ExtKey()
 		{
+#if HAS_SPAN
+			Span<byte> seed = stackalloc byte[64];
+			RandomUtils.GetBytes(seed);
+			SetMaster(seed);
+#else
 			byte[] seed = RandomUtils.GetBytes(64);
 			SetMaster(seed);
+#endif
 		}
 
 		public ExtKey Derive(RootedKeyPath rootedKeyPath)
@@ -226,14 +234,38 @@ namespace NBitcoin
 			SetMaster(seed.ToArray());
 		}
 
+#if HAS_SPAN
+		/// <summary>
+		/// Constructor. Creates a new extended key from the specified seed bytes.
+		/// </summary>
+		public ExtKey(ReadOnlySpan<byte> seed)
+		{
+			SetMaster(seed);
+		}
+		private void SetMaster(ReadOnlySpan<byte> seed)
+		{
+			Span<byte> hashMAC = stackalloc byte[64];
+			if (Hashes.HMACSHA512(hashkey, seed, hashMAC, out int len) &&
+				len == 64 &&
+				NBitcoinContext.Instance.TryCreateECPrivKey(hashMAC.Slice(0, 32), out var k) && k is Secp256k1.ECPrivKey)
+			{
+				key = new Key(k, true);
+				hashMAC.Slice(32, ChainCodeLength).CopyTo(vchChainCode);
+				hashMAC.Clear();
+			}
+			else
+			{
+				throw new InvalidOperationException("Invalid ExtKey (this should never happen)");
+			}
+		}
+#else
 		private void SetMaster(byte[] seed)
 		{
 			var hashMAC = Hashes.HMACSHA512(hashkey, seed);
 			key = new Key(hashMAC.SafeSubarray(0, 32));
-
 			Buffer.BlockCopy(hashMAC, 32, vchChainCode, 0, ChainCodeLength);
 		}
-
+#endif
 		/// <summary>
 		/// Get the private key of this extended key.
 		/// </summary>
@@ -328,7 +360,7 @@ namespace NBitcoin
 			return new BitcoinExtKey(this, network);
 		}
 
-		#region IBitcoinSerializable Members
+#region IBitcoinSerializable Members
 
 		public void ReadWrite(BitcoinStream stream)
 		{
@@ -344,7 +376,7 @@ namespace NBitcoin
 			}
 		}
 
-		#endregion
+#endregion
 
 		/// <summary>
 		/// Converts the extended key to the base58 representation, as a string, within the specified network.
@@ -354,7 +386,7 @@ namespace NBitcoin
 			return new BitcoinExtKey(this, network).ToString();
 		}
 
-		#region IDestination Members
+#region IDestination Members
 
 		/// <summary>
 		/// Gets the script of the hash of the public key corresponding to the private key.
@@ -367,7 +399,7 @@ namespace NBitcoin
 			}
 		}
 
-		#endregion
+#endregion
 
 		/// <summary>
 		/// Gets whether or not this extended key is a hardened child.
@@ -396,7 +428,26 @@ namespace NBitcoin
 			var expectedFingerPrint = parent.PubKey.GetHDFingerPrint();
 			if (parent.Depth != this.Depth - 1 || expectedFingerPrint != parentFingerprint)
 				throw new ArgumentException("The parent ExtPubKey is not the immediate parent of this ExtKey", "parent");
-
+#if HAS_SPAN
+			Span<byte> pubkey = stackalloc byte[33];
+			Span<byte> l = stackalloc byte[64];
+			parent.PubKey.ToBytes(pubkey, out _);
+			Hashes.BIP32Hash(parent.vchChainCode, nChild, pubkey[0], pubkey.Slice(1), l);
+			var parse256LL = new Secp256k1.Scalar(l.Slice(0, 32), out int overflow);
+			if (overflow != 0 || parse256LL.IsZero)
+				throw new InvalidOperationException("Invalid extkey (this should never happen)");
+			if (!l.Slice(32, 32).SequenceEqual(vchChainCode))
+				throw new InvalidOperationException("The derived chain code of the parent is not equal to this child chain code");
+			var kPar = this.PrivateKey._ECKey.sec + parse256LL.Negate();
+			return new ExtKey
+			{
+				vchChainCode = parent.vchChainCode,
+				nDepth = parent.Depth,
+				parentFingerprint = parent.ParentFingerprint,
+				nChild = parent.nChild,
+				key = new Key(new Secp256k1.ECPrivKey(kPar, this.PrivateKey._ECKey.ctx, true), true)
+			};
+#else
 			byte[] l = null;
 			byte[] ll = new byte[32];
 			byte[] lr = new byte[32];
@@ -430,6 +481,7 @@ namespace NBitcoin
 				key = new Key(keyParentBytes)
 			};
 			return parentExtKey;
+#endif
 		}
 
 		public bool Equals(ExtKey other)

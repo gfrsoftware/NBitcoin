@@ -8,6 +8,7 @@ Currently supported altcoins are:
 * Commutercoin
 * Dash
 * Dogecoin
+* Verge
 * Dystem
 * Feathercoin
 * Groestlcoin

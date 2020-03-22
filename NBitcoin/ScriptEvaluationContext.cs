@@ -1981,8 +1981,11 @@ namespace NBitcoin
 			{
 				if ((ScriptVerify & ScriptVerify.StrictEnc) != 0)
 					return false;
-
+#if HAS_SPAN
+				return false;
+#else
 				//Replicate OpenSSL bug on 23b397edccd3740a74adb603c9756370fafcde9bcc4483eb271ecad09a94dd63 (http://r6.ca/blog/20111119T211504Z.html)
+#pragma warning disable 618
 				var nLenR = vchSig[3];
 				var nLenS = vchSig[5 + nLenR];
 				var R = 4;
@@ -1995,6 +1998,8 @@ namespace NBitcoin
 					if (!pubkey.Verify(sighash, sig2))
 						return false;
 				}
+#pragma warning restore 618
+#endif
 			}
 
 			return true;
@@ -2223,7 +2228,7 @@ namespace NBitcoin
 			return new Enumerator(this);
 		}
 
-		#region Reverse order enumerator (for Stacks)
+#region Reverse order enumerator (for Stacks)
 
 		/// <summary>
 		/// Implements a reverse enumerator for the ContextStack
@@ -2273,7 +2278,7 @@ namespace NBitcoin
 			{
 			}
 		}
-		#endregion
+#endregion
 
 		internal void Clear()
 		{

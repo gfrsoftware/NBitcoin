@@ -1,4 +1,5 @@
-﻿using NBitcoin.BouncyCastle.Crypto;
+﻿#if !HAS_SPAN
+using NBitcoin.BouncyCastle.Crypto;
 using NBitcoin.BouncyCastle.Crypto.Digests;
 using NBitcoin.BouncyCastle.Crypto.Parameters;
 using NBitcoin.BouncyCastle.Crypto.Signers;
@@ -76,7 +77,10 @@ namespace NBitcoin.Crypto
 
 		public byte[] signHash(byte[] hash)
 		{
+#pragma warning disable 618
 			return new ECDSASignature(GenerateSignature(hash)).ToDER();
+#pragma warning restore 618
 		}
 	}
 }
+#endif

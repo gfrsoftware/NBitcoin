@@ -1,4 +1,5 @@
-﻿using NBitcoin.BouncyCastle.Asn1.X9;
+﻿#if !HAS_SPAN
+using NBitcoin.BouncyCastle.Asn1.X9;
 using NBitcoin.BouncyCastle.Crypto.Parameters;
 using NBitcoin.BouncyCastle.Crypto.Signers;
 using NBitcoin.BouncyCastle.Math;
@@ -86,9 +87,10 @@ namespace NBitcoin.Crypto
 		{
 			var signer = new ECDsaSigner();
 			signer.Init(false, GetPublicKeyParameters());
+#pragma warning disable 618
 			return signer.VerifySignature(hash.ToBytes(), sig.R, sig.S);
+#pragma warning restore 618
 		}
-
 
 		public PubKey GetPubKey(bool isCompressed)
 		{
@@ -112,15 +114,16 @@ namespace NBitcoin.Crypto
 			}
 		}
 
-
 		public static ECKey RecoverFromSignature(int recId, ECDSASignature sig, uint256 message, bool compressed)
 		{
 			if (recId < 0)
 				throw new ArgumentException("recId should be positive");
+#pragma warning disable 618
 			if (sig.R.SignValue < 0)
 				throw new ArgumentException("r should be positive");
 			if (sig.S.SignValue < 0)
 				throw new ArgumentException("s should be positive");
+#pragma warning restore 618
 			if (message == null)
 				throw new ArgumentNullException(nameof(message));
 
@@ -132,7 +135,9 @@ namespace NBitcoin.Crypto
 
 			var n = curve.N;
 			var i = NBitcoin.BouncyCastle.Math.BigInteger.ValueOf((long)recId / 2);
+#pragma warning disable 618
 			var x = sig.R.Add(i.Multiply(n));
+#pragma warning restore 618
 
 			//   1.2. Convert the integer x to an octet string X of length mlen using the conversion routine
 			//        specified in Section 2.3.7, where mlen = ⌈(log2 p)/8⌉ or mlen = ⌈m/8⌉.
@@ -170,8 +175,10 @@ namespace NBitcoin.Crypto
 			// inverse of 3 modulo 11 is 8 because 3 + 8 mod 11 = 0, and -3 mod 11 = 8.
 
 			var eInv = NBitcoin.BouncyCastle.Math.BigInteger.Zero.Subtract(e).Mod(n);
+#pragma warning disable 618
 			var rInv = sig.R.ModInverse(n);
 			var srInv = rInv.Multiply(sig.S).Mod(n);
+#pragma warning restore 618
 			var eInvrInv = rInv.Multiply(eInv).Mod(n);
 			ECPoint q = ECAlgorithms.SumOfTwoMultiplies(curve.G, eInvrInv, R, srInv);
 			q = q.Normalize();
@@ -181,7 +188,6 @@ namespace NBitcoin.Crypto
 			}
 			return new ECKey(q.GetEncoded(), false);
 		}
-
 		private static ECPoint DecompressKey(NBitcoin.BouncyCastle.Math.BigInteger xBN, bool yBit)
 		{
 			var curve = ECKey.Secp256k1.Curve;
@@ -192,3 +198,4 @@ namespace NBitcoin.Crypto
 
 	}
 }
+#endif
