@@ -301,8 +301,14 @@ namespace NBitcoin
 			}
 		}
 
-		internal void Combine(PSBTInput other)
+		/// <summary>
+		/// Import informations contained by <paramref name="other"/> into this instance.
+		/// </summary>
+		/// <param name="other"></param>
+		public void UpdateFrom(PSBTInput other)
 		{
+			if (other == null)
+				throw new ArgumentNullException(nameof(other));
 			if (this.IsFinalized())
 				return;
 
@@ -374,10 +380,14 @@ namespace NBitcoin
 		}
 
 		/// <summary>
+		/// Delete superflous information from a finalized input.
 		/// This will not clear utxos since tx extractor might want to check the validity
 		/// </summary>
-		internal void ClearForFinalize()
+		/// <exception cref="System.InvalidOperationException">The input need to be finalized</exception>
+		public void ClearForFinalize()
 		{
+			if (!IsFinalized())
+				throw new InvalidOperationException("The input need to be finalized");
 			this.redeem_script = null;
 			this.witness_script = null;
 			this.partial_sigs.Clear();
@@ -790,6 +800,8 @@ namespace NBitcoin
 		}
 		public TransactionSignature Sign(Key key, SigHash sigHash)
 		{
+			if (this.IsFinalized())
+				return null;
 			CheckCompatibleSigHash(sigHash);
 			if (PartialSigs.ContainsKey(key.PubKey))
 			{
