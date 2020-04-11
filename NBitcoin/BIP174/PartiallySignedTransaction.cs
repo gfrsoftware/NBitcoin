@@ -343,9 +343,12 @@ namespace NBitcoin
 		/// <summary>
 		/// If an other PSBT has a specific field and this does not have it, then inject that field to this.
 		/// otherwise leave it as it is.
+		///
+		/// If you need to call this on transactions with different global transaction, use <see cref="PSBT.UpdateFrom(PSBT)"/> instead.
 		/// </summary>
-		/// <param name="other"></param>
-		/// <returns></returns>
+		/// <param name="other">Another PSBT to takes information from</param>
+		/// <exception cref="System.ArgumentException">Can not Combine PSBT with different global tx.</exception>
+		/// <returns>This instance</returns>
 		public PSBT Combine(PSBT other)
 		{
 			if (other == null)
@@ -356,11 +359,46 @@ namespace NBitcoin
 			if (other.tx.GetHash() != this.tx.GetHash())
 				throw new ArgumentException(paramName: nameof(other), message: "Can not Combine PSBT with different global tx.");
 
+			foreach (var xpub in other.GlobalXPubs)
+				this.GlobalXPubs.TryAdd(xpub.Key, xpub.Value);
+
 			for (int i = 0; i < Inputs.Count; i++)
-				this.Inputs[i].Combine(other.Inputs[i]);
+				this.Inputs[i].UpdateFrom(other.Inputs[i]);
 
 			for (int i = 0; i < Outputs.Count; i++)
-				this.Outputs[i].Combine(other.Outputs[i]);
+				this.Outputs[i].UpdateFrom(other.Outputs[i]);
+
+			foreach (var uk in other.unknown)
+				this.unknown.TryAdd(uk.Key, uk.Value);
+
+			return this;
+		}
+
+		/// <summary>
+		/// If an other PSBT has a specific field and this does not have it, then inject that field to this.
+		/// otherwise leave it as it is.
+		///
+		/// Contrary to <see cref="PSBT.Combine(PSBT)"/>, it can be called on PSBT with a different global transaction.
+		/// </summary>
+		/// <param name="other">Another PSBT to takes information from</param>
+		/// <returns>This instance</returns>
+		public PSBT UpdateFrom(PSBT other)
+		{
+			if (other == null)
+			{
+				throw new ArgumentNullException(nameof(other));
+			}
+
+			foreach (var xpub in other.GlobalXPubs)
+				this.GlobalXPubs.TryAdd(xpub.Key, xpub.Value);
+
+			foreach (var otherInput in other.Inputs)
+				this.Inputs.FindIndexedInput(otherInput.PrevOut)?.UpdateFrom(otherInput);
+
+
+			foreach (var otherOutput in other.Outputs)
+				foreach (var thisOutput in this.Outputs.Where(o => o.ScriptPubKey == otherOutput.ScriptPubKey))
+					thisOutput.UpdateFrom(otherOutput);
 
 			foreach (var uk in other.unknown)
 				this.unknown.TryAdd(uk.Key, uk.Value);
@@ -571,6 +609,32 @@ namespace NBitcoin
 			catch
 			{
 				estimatedFeeRate = null;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Returns the virtual transaction size of the transaction. If the PSBT is finalized, then the exact virtual size.
+		/// </summary>
+		/// <param name="vsize">The calculated virtual size</param>
+		/// <returns>True if could get the virtual size could get estimated</returns>
+		public bool TryGetVirtualSize(out int vsize)
+		{
+			if (IsAllFinalized())
+			{
+				vsize = ExtractTransaction().GetVirtualSize();
+				return true;
+			}
+			var transactionBuilder = CreateTransactionBuilder();
+			transactionBuilder.AddCoins(GetAllCoins());
+			try
+			{
+				 vsize = transactionBuilder.EstimateSize(this.tx, true);
+				 return true;
+			}
+			catch
+			{
+				vsize = -1;
 				return false;
 			}
 		}
@@ -1093,16 +1157,22 @@ namespace NBitcoin
 					continue;
 				foreach (var keyPath in o)
 				{
-					o.Key.HDKeyPaths.Remove(keyPath.PubKey);
-					o.Key.HDKeyPaths.Add(keyPath.PubKey, newRoot.Derive(keyPath.RootedKeyPath.KeyPath));
+					if (keyPath.RootedKeyPath.MasterFingerprint != newRoot.MasterFingerprint)
+					{
+						o.Key.HDKeyPaths.Remove(keyPath.PubKey);
+						o.Key.HDKeyPaths.Add(keyPath.PubKey, newRoot.Derive(keyPath.RootedKeyPath.KeyPath));
+					}
 				}
 			}
 			foreach (var xpub in GlobalXPubs.ToList())
 			{
 				if (xpub.Key.ExtPubKey.PubKey == accountKey.GetPublicKey())
 				{
-					GlobalXPubs.Remove(xpub.Key);
-					GlobalXPubs.Add(xpub.Key, newRoot.Derive(xpub.Value.KeyPath));
+					if (xpub.Value.MasterFingerprint != newRoot.MasterFingerprint)
+					{
+						GlobalXPubs.Remove(xpub.Key);
+						GlobalXPubs.Add(xpub.Key, newRoot.Derive(xpub.Value.KeyPath));
+					}
 				}
 			}
 			return this;

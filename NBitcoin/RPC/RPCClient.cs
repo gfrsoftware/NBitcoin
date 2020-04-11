@@ -334,6 +334,7 @@ namespace NBitcoin.RPC
 			SetVersion(capabilities),
 			CheckCapabilities(rpc, "scantxoutset", v => capabilities.SupportScanUTXOSet = v),
 			CheckCapabilities(rpc, "signrawtransactionwithkey", v => capabilities.SupportSignRawTransactionWith = v),
+			CheckCapabilities(rpc, "testmempoolaccept", v => capabilities.SupportTestMempoolAccept = v),
 			CheckCapabilities(rpc, "estimatesmartfee", v => capabilities.SupportEstimateSmartFee = v),
 			CheckCapabilities(rpc, "generatetoaddress", v => capabilities.SupportGenerateToAddress = v),
 			CheckSegwitCapabilities(rpc, v => capabilities.SupportSegwit = v));
@@ -1547,20 +1548,27 @@ namespace NBitcoin.RPC
 			var first = response.Result[0];
 			var allowed = first["allowed"].Value<bool>();
 
-			var rejectedCode = 0;
+			RejectCode rejectedCode = RejectCode.INVALID;
 			var rejectedReason = string.Empty;
 			if (!allowed)
 			{
 				var rejected = first["reject-reason"].Value<string>();
-				var separatorIdx = rejected.IndexOf(":");
-				rejectedCode = int.Parse(rejected.Substring(0, separatorIdx));
-				rejectedReason = rejected.Substring(separatorIdx + 2);
+				var separatorIdx = rejected.IndexOf(':');
+				if (separatorIdx != -1)
+				{
+					rejectedCode = (RejectCode)int.Parse(rejected.Substring(0, separatorIdx));
+					rejectedReason = rejected.Substring(separatorIdx + 2);
+				}
+				else
+				{
+					rejectedReason = rejected;
+				}
 			}
 			return new MempoolAcceptResult
 			{
 				TxId = uint256.Parse(first["txid"].Value<string>()),
 				IsAllowed = allowed,
-				RejectCode = (RejectCode)rejectedCode,
+				RejectCode = rejectedCode,
 				RejectReason = rejectedReason
 			};
 		}
