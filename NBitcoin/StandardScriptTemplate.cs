@@ -391,8 +391,11 @@ namespace NBitcoin
 		public Script GenerateScriptSig(byte[][] pushes, Script redeemScript)
 		{
 			List<Op> ops = new List<Op>();
-			foreach (var push in pushes)
-				ops.Add(Op.GetPushOp(push));
+			if (pushes != null)
+			{
+				foreach (var push in pushes)
+					ops.Add(Op.GetPushOp(push));
+			}
 			ops.Add(Op.GetPushOp(redeemScript.ToBytes(true)));
 			return new Script(ops);
 		}
@@ -971,6 +974,10 @@ namespace NBitcoin
 			set;
 		}
 
+		/// <summary>
+		/// Check if this program represent P2WSH
+		/// </summary>
+		/// <returns>True if P2WSH</returns>
 		public bool NeedWitnessRedeemScript()
 		{
 			return Version == OpcodeType.OP_0 && Program?.Length is 32;
