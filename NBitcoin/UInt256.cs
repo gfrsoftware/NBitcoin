@@ -1,6 +1,8 @@
 ﻿
 using System;
+using System.Collections;
 using System.Linq;
+using System.Runtime.InteropServices;
 using NBitcoin.DataEncoders;
 
 namespace NBitcoin
@@ -85,10 +87,6 @@ namespace NBitcoin
 			pn1 = b.pn1;
 			pn2 = b.pn2;
 			pn3 = b.pn3;
-			pn4 = b.pn4;
-			pn5 = b.pn5;
-			pn6 = b.pn6;
-			pn7 = b.pn7;
 		}
 
 		public static uint256 Parse(string hex)
@@ -112,21 +110,32 @@ namespace NBitcoin
 
 		private static readonly HexEncoder Encoder = new HexEncoder();
 		private const int WIDTH_BYTE = 256 / 8;
-		internal readonly UInt32 pn0;
-		internal readonly UInt32 pn1;
-		internal readonly UInt32 pn2;
-		internal readonly UInt32 pn3;
-		internal readonly UInt32 pn4;
-		internal readonly UInt32 pn5;
-		internal readonly UInt32 pn6;
-		internal readonly UInt32 pn7;
+		internal readonly ulong pn0;
+		internal readonly ulong pn1;
+		internal readonly ulong pn2;
+		internal readonly ulong pn3;
 
 		public byte GetByte(int index)
 		{
-			var uintIndex = index / sizeof(uint);
-			var byteIndex = index % sizeof(uint);
-			UInt32 value;
-			switch (uintIndex)
+#if HAS_SPAN
+			if (index < 0 || index > 31)
+				throw new ArgumentOutOfRangeException("index");
+			if (BitConverter.IsLittleEndian)
+			{
+				Span<ulong> temp = stackalloc ulong[4];
+				temp[0] = pn0;
+				temp[1] = pn1;
+				temp[2] = pn2;
+				temp[3] = pn3;
+				Span<byte> temp2 = MemoryMarshal.Cast<ulong, byte>(temp);
+				return temp2[index];
+			}
+#endif
+
+			var ulongIndex = index / sizeof(ulong);
+			var byteIndex = index % sizeof(ulong);
+			ulong value;
+			switch (ulongIndex)
 			{
 				case 0:
 					value = pn0;
@@ -139,18 +148,6 @@ namespace NBitcoin
 					break;
 				case 3:
 					value = pn3;
-					break;
-				case 4:
-					value = pn4;
-					break;
-				case 5:
-					value = pn5;
-					break;
-				case 6:
-					value = pn6;
-					break;
-				case 7:
-					value = pn7;
 					break;
 				default:
 					throw new ArgumentOutOfRangeException("index");
@@ -168,12 +165,6 @@ namespace NBitcoin
 		{
 			pn0 = (uint)b;
 			pn1 = (uint)(b >> 32);
-			pn2 = 0;
-			pn3 = 0;
-			pn4 = 0;
-			pn5 = 0;
-			pn6 = 0;
-			pn7 = 0;
 		}
 
 		public uint256(byte[] vch, bool lendian = true) : this(vch, 0, vch.Length, lendian)
@@ -187,6 +178,17 @@ namespace NBitcoin
 			{
 				throw new FormatException("the byte array should be 32 bytes long");
 			}
+#if HAS_SPAN
+			if (BitConverter.IsLittleEndian && lendian)
+			{
+				var uints = MemoryMarshal.Cast<byte, ulong>(vch.AsSpan().Slice(offset, length));
+				pn0 = uints[0];
+				pn1 = uints[1];
+				pn2 = uints[2];
+				pn3 = uints[3];
+				return;
+			}
+#endif
 
 			if (!lendian)
 			{
@@ -195,14 +197,10 @@ namespace NBitcoin
 				vch = vch.Reverse().ToArray();
 			}
 
-			pn0 = Utils.ToUInt32(vch, offset + 4 * 0, true);
-			pn1 = Utils.ToUInt32(vch, offset + 4 * 1, true);
-			pn2 = Utils.ToUInt32(vch, offset + 4 * 2, true);
-			pn3 = Utils.ToUInt32(vch, offset + 4 * 3, true);
-			pn4 = Utils.ToUInt32(vch, offset + 4 * 4, true);
-			pn5 = Utils.ToUInt32(vch, offset + 4 * 5, true);
-			pn6 = Utils.ToUInt32(vch, offset + 4 * 6, true);
-			pn7 = Utils.ToUInt32(vch, offset + 4 * 7, true);
+			pn0 = Utils.ToUInt64(vch, offset + 8 * 0, true);
+			pn1 = Utils.ToUInt64(vch, offset + 8 * 1, true);
+			pn2 = Utils.ToUInt64(vch, offset + 8 * 2, true);
+			pn3 = Utils.ToUInt64(vch, offset + 8 * 3, true);
 
 		}
 
@@ -213,121 +211,97 @@ namespace NBitcoin
 			{
 				throw new FormatException("the byte array should be 32 bytes long");
 			}
-
-			pn0 = Utils.ToUInt32(bytes.Slice(0), true);
-			pn1 = Utils.ToUInt32(bytes.Slice(4 * 1), true);
-			pn2 = Utils.ToUInt32(bytes.Slice(4 * 2), true);
-			pn3 = Utils.ToUInt32(bytes.Slice(4 * 3), true);
-			pn4 = Utils.ToUInt32(bytes.Slice(4 * 4), true);
-			pn5 = Utils.ToUInt32(bytes.Slice(4 * 5), true);
-			pn6 = Utils.ToUInt32(bytes.Slice(4 * 6), true);
-			pn7 = Utils.ToUInt32(bytes.Slice(4 * 7), true);
+			if (BitConverter.IsLittleEndian)
+			{
+				var uints = MemoryMarshal.Cast<byte, ulong>(bytes);
+				pn0 = uints[0];
+				pn1 = uints[1];
+				pn2 = uints[2];
+				pn3 = uints[3];
+				return;
+			}
+			pn0 = Utils.ToUInt64(bytes.Slice(0), true);
+			pn1 = Utils.ToUInt64(bytes.Slice(8 * 1), true);
+			pn2 = Utils.ToUInt64(bytes.Slice(8 * 2), true);
+			pn3 = Utils.ToUInt64(bytes.Slice(8 * 3), true);
 		}
 #endif
-
+		/// <summary>
+		/// Create a uint256 from a string in big endian
+		/// </summary>
+		/// <param name="str"></param>
 		public uint256(string str)
 		{
-			pn0 = 0;
-			pn1 = 0;
-			pn2 = 0;
-			pn3 = 0;
-			pn4 = 0;
-			pn5 = 0;
-			pn6 = 0;
-			pn7 = 0;
-			str = str.Trim();
+			if (str == null)
+				throw new ArgumentNullException(nameof(str));
+			if (str.Length != 64)
+			{
+				if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+					str = str.Substring(2);
+				str = str.Trim();
+				if (str.Length != 64)
+					throw new FormatException("A uint256 must be 64 characters");
+			}
 
-			if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-				str = str.Substring(2);
-
+#if HAS_SPAN
+			if (BitConverter.IsLittleEndian)
+			{
+				Span<byte> tmp = stackalloc byte[32];
+				Encoder.DecodeData(str, tmp);
+				tmp.Reverse();
+				Span<ulong> uints = MemoryMarshal.Cast<byte, ulong>(tmp);
+				pn0 = uints[0];
+				pn1 = uints[1];
+				pn2 = uints[2];
+				pn3 = uints[3];
+				return;
+			}
+#endif
 			var bytes = Encoder.DecodeData(str);
 			Array.Reverse(bytes);
-			if (bytes.Length != WIDTH_BYTE)
-				throw new FormatException("Invalid hex length");
-			pn0 = Utils.ToUInt32(bytes, 4 * 0, true);
-			pn1 = Utils.ToUInt32(bytes, 4 * 1, true);
-			pn2 = Utils.ToUInt32(bytes, 4 * 2, true);
-			pn3 = Utils.ToUInt32(bytes, 4 * 3, true);
-			pn4 = Utils.ToUInt32(bytes, 4 * 4, true);
-			pn5 = Utils.ToUInt32(bytes, 4 * 5, true);
-			pn6 = Utils.ToUInt32(bytes, 4 * 6, true);
-			pn7 = Utils.ToUInt32(bytes, 4 * 7, true);
-
+			pn0 = Utils.ToUInt64(bytes, 8 * 0, true);
+			pn1 = Utils.ToUInt64(bytes, 8 * 1, true);
+			pn2 = Utils.ToUInt64(bytes, 8 * 2, true);
+			pn3 = Utils.ToUInt64(bytes, 8 * 3, true);
 		}
 
 		public int GetBisCount()
 		{
-			if (pn7 != 0)
-			{
-				for (int nbits = 31; nbits > 0; nbits--)
-				{
-					if ((pn7 & 1U << nbits) != 0)
-						return 32 * 7 + nbits + 1;
-				}
-				return 32 * 7 + 1;
-			}
-			if (pn6 != 0)
-			{
-				for (int nbits = 31; nbits > 0; nbits--)
-				{
-					if ((pn6 & 1U << nbits) != 0)
-						return 32 * 6 + nbits + 1;
-				}
-				return 32 * 6 + 1;
-			}
-			if (pn5 != 0)
-			{
-				for (int nbits = 31; nbits > 0; nbits--)
-				{
-					if ((pn5 & 1U << nbits) != 0)
-						return 32 * 5 + nbits + 1;
-				}
-				return 32 * 5 + 1;
-			}
-			if (pn4 != 0)
-			{
-				for (int nbits = 31; nbits > 0; nbits--)
-				{
-					if ((pn4 & 1U << nbits) != 0)
-						return 32 * 4 + nbits + 1;
-				}
-				return 32 * 4 + 1;
-			}
 			if (pn3 != 0)
 			{
-				for (int nbits = 31; nbits > 0; nbits--)
+				for (int nbits = 63; nbits > 0; nbits--)
 				{
-					if ((pn3 & 1U << nbits) != 0)
-						return 32 * 3 + nbits + 1;
+					if ((pn3 & 1UL << nbits) != 0)
+						return 64 * 3 + nbits + 1;
 				}
-				return 32 * 3 + 1;
+				return 64 * 3 + 1;
 			}
 			if (pn2 != 0)
 			{
-				for (int nbits = 31; nbits > 0; nbits--)
+				for (int nbits = 63; nbits > 0; nbits--)
 				{
-					if ((pn2 & 1U << nbits) != 0)
-						return 32 * 2 + nbits + 1;
+					if ((pn2 & 1UL << nbits) != 0)
+						return 64 * 2 + nbits + 1;
 				}
-				return 32 * 2 + 1;
+				return 64 * 2 + 1;
 			}
 			if (pn1 != 0)
 			{
-				for (int nbits = 31; nbits > 0; nbits--)
+				for (int nbits = 63; nbits > 0; nbits--)
 				{
-					if ((pn1 & 1U << nbits) != 0)
-						return 32 * 1 + nbits + 1;
+					if ((pn1 & 1UL << nbits) != 0)
+						return 64 * 1 + nbits + 1;
 				}
-				return 32 * 1 + 1;
+				return 64 * 1 + 1;
 			}
 			if (pn0 != 0)
 			{
-				for (int nbits = 31; nbits > 0; nbits--)
+				for (int nbits = 63; nbits > 0; nbits--)
 				{
-					if ((pn0 & 1U << nbits) != 0)
-						return 32 * 0 + nbits + 1;
+					if ((pn0 & 1UL << nbits) != 0)
+						return 64 * 0 + nbits + 1;
 				}
-				return 32 * 0 + 1;
+				return 64 * 0 + 1;
 			}
 			return 0;
 		}
@@ -355,10 +329,6 @@ namespace NBitcoin
 			equals &= pn1 == other.pn1;
 			equals &= pn2 == other.pn2;
 			equals &= pn3 == other.pn3;
-			equals &= pn4 == other.pn4;
-			equals &= pn5 == other.pn5;
-			equals &= pn6 == other.pn6;
-			equals &= pn7 == other.pn7;
 			return equals;
 		}
 
@@ -385,10 +355,6 @@ namespace NBitcoin
 			equals &= a.pn1 == b.pn1;
 			equals &= a.pn2 == b.pn2;
 			equals &= a.pn3 == b.pn3;
-			equals &= a.pn4 == b.pn4;
-			equals &= a.pn5 == b.pn5;
-			equals &= a.pn6 == b.pn6;
-			equals &= a.pn7 == b.pn7;
 			return equals;
 		}
 
@@ -419,22 +385,6 @@ namespace NBitcoin
 			if (a is null && !(b is null))
 				return -1;
 			if (!(a is null) && b is null)
-				return 1;
-			if (a.pn7 < b.pn7)
-				return -1;
-			if (a.pn7 > b.pn7)
-				return 1;
-			if (a.pn6 < b.pn6)
-				return -1;
-			if (a.pn6 > b.pn6)
-				return 1;
-			if (a.pn5 < b.pn5)
-				return -1;
-			if (a.pn5 > b.pn5)
-				return 1;
-			if (a.pn4 < b.pn4)
-				return -1;
-			if (a.pn4 > b.pn4)
 				return 1;
 			if (a.pn3 < b.pn3)
 				return -1;
@@ -485,16 +435,39 @@ namespace NBitcoin
 			return arr;
 		}
 
+		/// <summary>
+		/// Write this instance to the output in little endian
+		/// </summary>
+		/// <param name="output"></param>
 		public void ToBytes(byte[] output)
 		{
-			Buffer.BlockCopy(Utils.ToBytes(pn0, true), 0, output, 4 * 0, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn1, true), 0, output, 4 * 1, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn2, true), 0, output, 4 * 2, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn3, true), 0, output, 4 * 3, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn4, true), 0, output, 4 * 4, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn5, true), 0, output, 4 * 5, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn6, true), 0, output, 4 * 6, 4);
-			Buffer.BlockCopy(Utils.ToBytes(pn7, true), 0, output, 4 * 7, 4);
+			ToBytes(output, true);
+		}
+		/// <summary>
+		/// Write this instance to the output
+		/// </summary>
+		/// <param name="output"></param>
+		/// <param name="lendian"></param>
+		public void ToBytes(byte[] output, bool lendian)
+		{
+#if HAS_SPAN
+			ToBytes(output.AsSpan(), lendian);
+#else
+			if (lendian)
+			{
+				Buffer.BlockCopy(Utils.ToBytes(pn0, true), 0, output, 8 * 0, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn1, true), 0, output, 8 * 1, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn2, true), 0, output, 8 * 2, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn3, true), 0, output, 8 * 3, 8);
+			}
+			else
+			{
+				Buffer.BlockCopy(Utils.ToBytes(pn3, false), 0, output, 8 * 0, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn2, false), 0, output, 8 * 1, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn1, false), 0, output, 8 * 2, 8);
+				Buffer.BlockCopy(Utils.ToBytes(pn0, false), 0, output, 8 * 3, 8);
+			}
+#endif
 		}
 
 #if HAS_SPAN
@@ -503,22 +476,27 @@ namespace NBitcoin
 			if (output.Length < WIDTH_BYTE)
 				throw new ArgumentException(message: $"The array should be at least of size {WIDTH_BYTE}", paramName: nameof(output));
 
+			if (BitConverter.IsLittleEndian)
+			{
+				Span<ulong> temp = stackalloc ulong[4];
+				temp[0] = pn0;
+				temp[1] = pn1;
+				temp[2] = pn2;
+				temp[3] = pn3;
+				var tempBytes = MemoryMarshal.Cast<ulong, byte>(temp);
+				if (!lendian)
+					tempBytes.Reverse();
+				tempBytes.CopyTo(output);
+				return;
+			}
 			var initial = output;
 			Utils.ToBytes(pn0, true, output);
-			output = output.Slice(4);
+			output = output.Slice(8);
 			Utils.ToBytes(pn1, true, output);
-			output = output.Slice(4);
+			output = output.Slice(8);
 			Utils.ToBytes(pn2, true, output);
-			output = output.Slice(4);
+			output = output.Slice(8);
 			Utils.ToBytes(pn3, true, output);
-			output = output.Slice(4);
-			Utils.ToBytes(pn4, true, output);
-			output = output.Slice(4);
-			Utils.ToBytes(pn5, true, output);
-			output = output.Slice(4);
-			Utils.ToBytes(pn6, true, output);
-			output = output.Slice(4);
-			Utils.ToBytes(pn7, true, output);
 
 			if (!lendian)
 				initial.Reverse();
@@ -544,29 +522,25 @@ namespace NBitcoin
 
 		public ulong GetLow64()
 		{
-			return pn0 | (ulong)pn1 << 32;
+			return pn0;
 		}
 
 		public uint GetLow32()
 		{
-			return pn0;
+			return unchecked((uint)(pn0 & 0xFFFFFFFF));
 		}
 
 		public override int GetHashCode()
 		{
-			int hash = 17;
+			long hash = 17;
 			unchecked
 			{
-				hash = hash * 31 + (int)pn0;
-				hash = hash * 31 + (int)pn1;
-				hash = hash * 31 + (int)pn2;
-				hash = hash * 31 + (int)pn3;
-				hash = hash * 31 + (int)pn4;
-				hash = hash * 31 + (int)pn5;
-				hash = hash * 31 + (int)pn6;
-				hash = hash * 31 + (int)pn7;
+				hash = hash * 61 + (long)pn0;
+				hash = hash * 61 + (long)pn1;
+				hash = hash * 61 + (long)pn2;
+				hash = hash * 61 + (long)pn3;
+				return (int)hash;
 			}
-			return hash;
 		}
 	}
 	public sealed class uint160 : IComparable<uint160>, IEquatable<uint160>, IComparable

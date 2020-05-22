@@ -70,7 +70,19 @@ namespace NBitcoin
 		/// This should be turned false only in the test.
 		/// ref: https://github.com/bitcoin/bitcoin/pull/13666
 		/// </summary>
-		public bool UseLowR { get; set; } = true;
+		[Obsolete("Pass SigningOptions with SigningOptions.EnforceLowR set when signing instead")]
+		public bool UseLowR
+		{
+			get
+			{
+				return _UseLowR is bool v ? v : true;
+			}
+			set
+			{
+				_UseLowR = value;
+			}
+		}
+		internal bool? _UseLowR;
 
 		/// <summary>
 		/// Use custom builder extensions to customize finalization
@@ -86,7 +98,9 @@ namespace NBitcoin
 		{
 			return new PSBTSettings()
 			{
+#pragma warning disable CS0618 // Type or member is obsolete
 				UseLowR = UseLowR,
+#pragma warning restore CS0618 // Type or member is obsolete
 				CustomBuilderExtensions = CustomBuilderExtensions?.ToArray(),
 				IsSmart = IsSmart
 			};
@@ -659,15 +673,35 @@ namespace NBitcoin
 		{
 			return SignWithKeys(SigHash.All, keys.Select(k => k.PrivateKey).ToArray());
 		}
+		public PSBT SignWithKeys(SigningOptions signingOptions, params ISecret[] keys)
+		{
+			return SignWithKeys(signingOptions, keys.Select(k => k.PrivateKey).ToArray());
+		}
 
 		public PSBT SignWithKeys(SigHash sigHash, params Key[] keys)
+		{
+			return SignWithKeys(Normalize(new SigningOptions(sigHash)), keys);
+		}
+
+		internal SigningOptions Normalize(SigningOptions signingOptions)
+		{
+			// Handle legacy
+			if (Settings._UseLowR is bool v)
+			{
+				signingOptions = signingOptions.Clone();
+				signingOptions.EnforceLowR = v;
+			}
+			return signingOptions;
+		}
+
+		public PSBT SignWithKeys(SigningOptions signingOptions, params Key[] keys)
 		{
 			AssertSanity();
 			foreach (var key in keys)
 			{
 				foreach (var input in this.Inputs)
 				{
-					input.Sign(key, sigHash);
+					input.Sign(key, signingOptions);
 				}
 			}
 			return this;
@@ -681,7 +715,9 @@ namespace NBitcoin
 				transactionBuilder.Extensions.Clear();
 				transactionBuilder.Extensions.AddRange(Settings.CustomBuilderExtensions);
 			}
+#pragma warning disable CS0618 // Type or member is obsolete
 			transactionBuilder.UseLowR = Settings.UseLowR;
+#pragma warning restore CS0618 // Type or member is obsolete
 			return transactionBuilder;
 		}
 
