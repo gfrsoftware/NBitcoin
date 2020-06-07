@@ -68,7 +68,6 @@ namespace NBitcoin.Altcoins
 			yield return Bitcoinplus;
 			yield return Chaincoin;
 			yield return ZCoin;
-			//yield return DogeCash;
 			yield return Qtum;
 			yield return DogeCash;
 			yield return Commutercoin;
