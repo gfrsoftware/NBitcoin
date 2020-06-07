@@ -257,6 +257,18 @@ namespace NBitcoin.Crypto
 #pragma warning restore 618
 			return true;
 		}
+
+		public byte[] ToCompact()
+		{
+			var result = new byte[64];
+#pragma warning disable 618
+			var rBytes = this.R.ToByteArrayUnsigned();
+			var sBytes = this.S.ToByteArrayUnsigned();
+			rBytes.CopyTo(result, 32 - rBytes.Length);
+			sBytes.CopyTo(result, 64 - sBytes.Length);
+#pragma warning restore 618
+			return result;
+		}
 #endif
 
 #if HAS_SPAN
@@ -294,6 +306,14 @@ namespace NBitcoin.Crypto
 		public ECDSASignature(byte[] derSig) : this(derSig.AsSpan())
 		{
 		}
+
+		public byte[] ToCompact()
+		{
+			var result = new byte[64];
+			ToSecpECDSASignature().WriteCompactToSpan(result.AsSpan());
+			return result;
+		}
+
 		public ECDSASignature(ReadOnlySpan<byte> derSig)
 		{
 			if (ecdsa_signature_parse_der_lax(derSig, out var sig) && sig is Secp256k1.SecpECDSASignature)
