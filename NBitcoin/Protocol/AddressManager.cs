@@ -166,13 +166,13 @@ namespace NBitcoin.Protocol
 			internal int GetNewBucket(uint256 nKey, IPAddress src)
 			{
 				byte[] vchSourceGroupKey = src.GetGroup();
-				UInt64 hash1 = Cheap(Hashes.Hash256(
+				UInt64 hash1 = Cheap(Hashes.DoubleSHA256(
 					nKey.ToBytes(true)
 					.Concat(Address.Endpoint.Address.GetGroup())
 					.Concat(vchSourceGroupKey)
 					.ToArray()));
 
-				UInt64 hash2 = Cheap(Hashes.Hash256(
+				UInt64 hash2 = Cheap(Hashes.DoubleSHA256(
 					nKey.ToBytes(true)
 					.Concat(vchSourceGroupKey)
 					.Concat(Utils.ToBytes(hash1 % AddressManager.ADDRMAN_NEW_BUCKETS_PER_SOURCE_GROUP, true))
@@ -188,7 +188,7 @@ namespace NBitcoin.Protocol
 			internal int GetBucketPosition(uint256 nKey, bool fNew, int nBucket)
 			{
 				UInt64 hash1 = Cheap(
-					Hashes.Hash256(
+					Hashes.DoubleSHA256(
 						nKey.ToBytes()
 						.Concat(new byte[] { (fNew ? (byte)'N' : (byte)'K') })
 						.Concat(Utils.ToBytes((uint)nBucket, false))
@@ -199,8 +199,8 @@ namespace NBitcoin.Protocol
 
 			internal int GetTriedBucket(uint256 nKey)
 			{
-				UInt64 hash1 = Cheap(Hashes.Hash256(nKey.ToBytes().Concat(Address.GetKey()).ToArray()));
-				UInt64 hash2 = Cheap(Hashes.Hash256(nKey.ToBytes().Concat(Address.Endpoint.Address.GetGroup()).Concat(Utils.ToBytes(hash1 % AddressManager.ADDRMAN_TRIED_BUCKETS_PER_GROUP, true)).ToArray()));
+				UInt64 hash1 = Cheap(Hashes.DoubleSHA256(nKey.ToBytes().Concat(Address.GetKey()).ToArray()));
+				UInt64 hash2 = Cheap(Hashes.DoubleSHA256(nKey.ToBytes().Concat(Address.Endpoint.Address.GetGroup()).Concat(Utils.ToBytes(hash1 % AddressManager.ADDRMAN_TRIED_BUCKETS_PER_GROUP, true)).ToArray()));
 				return (int)(hash2 % ADDRMAN_TRIED_BUCKET_COUNT);
 			}
 
@@ -312,7 +312,7 @@ namespace NBitcoin.Protocol
 				hash = new byte[32];
 				fs.Read(hash, 0, 32);
 			}
-			var actual = Hashes.Hash256(data);
+			var actual = Hashes.DoubleSHA256(data);
 			var expected = new uint256(hash);
 			if (expected != actual)
 				throw new FormatException("Invalid address manager file");
@@ -340,7 +340,7 @@ namespace NBitcoin.Protocol
 			stream.Type = SerializationType.Disk;
 			stream.ReadWrite(network.Magic);
 			stream.ReadWrite(this);
-			var hash = Hashes.Hash256(ms.ToArray());
+			var hash = Hashes.DoubleSHA256(ms.ToArray());
 			stream.ReadWrite(hash.AsBitcoinSerializable());
 
 			string dirPath = Path.GetDirectoryName(filePath);
@@ -397,6 +397,10 @@ namespace NBitcoin.Protocol
 
 		int[,] vvNew;
 		int[,] vvTried;
+
+		public int DiscoveredPeers => _DiscoveredPeers;
+		int _DiscoveredPeers; // no auto-property because used as ref parameter below
+		public int NeededPeers { get; private set; }
 
 		Dictionary<int, AddressInfo> mapInfo = new Dictionary<int, AddressInfo>();
 		Dictionary<IPAddress, int> mapAddr = new Dictionary<IPAddress, int>();
@@ -1166,10 +1170,11 @@ namespace NBitcoin.Protocol
 			TimeSpan backoff = TimeSpan.Zero;
 			Logs.NodeServer.LogTrace("Discovering nodes");
 
-			int found = 0;
+			_DiscoveredPeers = 0;
+			NeededPeers = peerToFind;
 
 			{
-				while (found < peerToFind)
+				while (_DiscoveredPeers < peerToFind)
 				{
 					Thread.Sleep(backoff);
 					backoff = backoff == TimeSpan.Zero ? TimeSpan.FromSeconds(1.0) : TimeSpan.FromSeconds(backoff.TotalSeconds * 2);
@@ -1178,7 +1183,7 @@ namespace NBitcoin.Protocol
 
 					parameters.ConnectCancellation.ThrowIfCancellationRequested();
 
-					Logs.NodeServer.LogTrace("Remaining peer to get {remainingPeerCount}", (-found + peerToFind));
+					Logs.NodeServer.LogTrace("Remaining peer to get {remainingPeerCount}", (-_DiscoveredPeers + peerToFind));
 
 					List<NetworkAddress> peers = new List<NetworkAddress>();
 					peers.AddRange(this.GetAddr());
@@ -1219,9 +1224,9 @@ namespace NBitcoin.Protocol
 										var addr = (a.Message.Payload as AddrPayload);
 										if (addr != null)
 										{
-											Interlocked.Add(ref found, addr.Addresses.Length);
+											Interlocked.Add(ref _DiscoveredPeers, addr.Addresses.Length);
 											backoff = TimeSpan.FromSeconds(0);
-											if (found >= peerToFind)
+											if (_DiscoveredPeers >= peerToFind)
 												peerTableFull.Cancel();
 										}
 									};
@@ -1237,10 +1242,10 @@ namespace NBitcoin.Protocol
 										n.DisconnectAsync();
 								}
 							}
-							if (found >= peerToFind)
+							if (_DiscoveredPeers >= peerToFind)
 								peerTableFull.Cancel();
 							else
-								Logs.NodeServer.LogInformation("Need {neededPeerCount} more peers", (-found + peerToFind));
+								Logs.NodeServer.LogInformation("Need {neededPeerCount} more peers", (-_DiscoveredPeers + peerToFind));
 						});
 					}
 					catch (OperationCanceledException)

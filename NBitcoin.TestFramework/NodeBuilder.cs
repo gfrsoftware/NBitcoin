@@ -281,7 +281,7 @@ namespace NBitcoin.Tests
 			_State = CoreNodeState.Stopped;
 
 			dataDir = Path.Combine(folder, "data");
-			var pass = Hashes.Hash256(Encoding.UTF8.GetBytes(folder)).ToString();
+			var pass = Hashes.DoubleSHA256(Encoding.UTF8.GetBytes(folder)).ToString();
 			creds = new NetworkCredential(pass, pass);
 			_Config = Path.Combine(dataDir, "bitcoin.conf");
 			ConfigParameters.Import(builder.ConfigParameters, true);
@@ -502,6 +502,7 @@ namespace NBitcoin.Tests
 			config.Add("rpcport", ports[1].ToString());
 			config.Add("printtoconsole", _Builder.ShowNodeConsole ? "1" : "0");
 			config.Add("keypool", "10");
+			config.Add("fallbackfee", "0.0002"); // https://github.com/bitcoin/bitcoin/pull/16524
 			config.Import(ConfigParameters, true);
 			configStr.AppendLine(config.ToString());
 			if (NodeImplementation.AdditionalRegtestConfig != null)

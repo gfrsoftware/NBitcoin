@@ -16,6 +16,7 @@ Currently supported altcoins are:
 * Liquid
 * Litecoin
 * Monacoin
+* MonetaryUnit
 * Polis
 * Terracoin
 * UFO

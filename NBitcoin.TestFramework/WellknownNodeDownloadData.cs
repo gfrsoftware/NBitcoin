@@ -168,6 +168,32 @@ namespace NBitcoin.Tests
 				UseSectionInConfigFile = true
 			};
 
+			public NodeDownloadData v0_20_0 = new NodeDownloadData()
+			{
+				Version = "0.20.0",
+				Linux = new NodeOSDownloadData()
+				{
+					Archive = "bitcoin-{0}-x86_64-linux-gnu.tar.gz",
+					DownloadLink = "https://bitcoincore.org/bin/bitcoin-core-{0}/bitcoin-{0}-x86_64-linux-gnu.tar.gz",
+					Executable = "bitcoin-{0}/bin/bitcoind",
+					Hash = "081b30b0f1af95656242c83eef30bbf7216b1a30fa8e8f29b3b160fe520d28f6"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					Archive = "bitcoin-{0}-osx64.tar.gz",
+					DownloadLink = "https://bitcoincore.org/bin/bitcoin-core-{0}/bitcoin-{0}-osx64.tar.gz",
+					Executable = "bitcoin-{0}/bin/bitcoind",
+					Hash = "34f377fee2c7adf59981dde7e41215765d47b466f773cf2673137d30495b2675"
+				},
+				Windows = new NodeOSDownloadData()
+				{
+					Executable = "bitcoin-{0}/bin/bitcoind.exe",
+					DownloadLink = "https://bitcoincore.org/bin/bitcoin-core-{0}/bitcoin-{0}-win64.zip",
+					Archive = "bitcoin-{0}-win64.zip",
+					Hash = "3e9ddfa05b7967e43fb502b735b6c4d716ec06f63ab7183df2e006ed4a6a431f"
+				},
+				UseSectionInConfigFile = true
+			};
 		}
 
 		public class LitecoinNodeDownloadData
@@ -654,29 +680,22 @@ namespace NBitcoin.Tests
 
 		public class BitcoreNodeDownloadData
 		{
-			public NodeDownloadData v0_15_2 = new NodeDownloadData()
+			public NodeDownloadData v0_90_9_1 = new NodeDownloadData()
 			{
-				Version = "0.15.2.0.0",
+				Version = "0.90.9.1",
 				Windows = new NodeOSDownloadData()
 				{
-					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/windows.zip",
-					Archive = "windows.zip",
+					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/bitcore-win64-daemon.zip",
+					Archive = "bitcore-win64-daemon.zip",
 					Executable = "bitcored.exe",
-					Hash = "96b70ff0828af1a147c0be9326a941d541c6c82d96767d79378289d3e6a80b9a"
+					Hash = "e024772e3bf18e23ee4c942f6577b38f7fc34b2139bea9fd4aab7eb9d93ea24c"
 				},
 				Linux = new NodeOSDownloadData()
 				{
-					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/linux.Ubuntu.16.04.LTS-static-libstdc.tar.gz",
-					Archive = "linux.Ubuntu.16.04.LTS-static-libstdc.tar.gz",
-					Executable = "bitcored",
-					Hash = "b9092c1ad8e814b95f1d2199c535f24a02174af342399fe9b7f457d9d182f5a4"
-				},
-				Mac = new NodeOSDownloadData()
-				{
-					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/BitCore-Qt.dmg",
-					Archive = "BitCore-Qt.dmg",
-					Executable = "bitcored",
-					Hash = "74efb6069278ef99fa361d70368a15da8cfc7bc92b33ead4af0b06277e16ef25"
+					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/bitcore-x86_64-linux-gnu_no-wallet.tar.gz",
+					Archive = "bitcore-x86_64-linux-gnu_no-wallet.tar.gz",
+					Executable = "bin/bitcored",
+					Hash = "7dc0f84799d025e7acbf13a985d69c2069f8e401b7d493766632a5339c1db8f8"
 				}
 			};
 		}
@@ -1349,6 +1368,35 @@ namespace NBitcoin.Tests
 				UseSectionInConfigFile = true
 			};
 		}
+		
+		public class MonetaryUnitNodeDownloadData
+		{
+			public NodeDownloadData v2_1_6 = new NodeDownloadData()
+			{
+				Version = "2.1.6",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/muecoin/MUE/releases/download/v2.1.6/mon-2.1.6-win64.zip",
+					Archive = "mon-2.1.6-win64.zip",
+					Executable = "mon/bin/monetaryunitd.exe",
+					Hash = "32ff392d34396e3b5c123ee629a72aef1bc9380afd9630bb98c0d8a3eaa9ea22"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/muecoin/MUE/releases/download/v2.1.6/mon-2.1.6-x86_64-linux-gnu.tar.gz",
+					Archive = "mon-2.1.6-x86_64-linux-gnu.tar.gz",
+					Executable = "mon/bin/monetaryunitd",
+					Hash = "87aee9fd607af80fded5c8495fbb978f646cd7e7020be071ca3868840c42d62f"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/muecoin/MUE/releases/download/v2.1.6/mon-2.1.6-osx64.tar.gz",
+					Archive = "mon-2.1.6-osx64.tar.gz",
+					Executable = "mon/bin/monetaryunitd",
+					Hash = "af3712f4d6a526d8003198bb8c80d8fbbb97d97249ed9737a829527f8fab1e74"
+				}
+			};
+		}
 
 		public class CommutercoinNodeDownloadData
 		{
@@ -1528,6 +1576,11 @@ namespace NBitcoin.Tests
 		{
 			get; set;
 		} = new QtumNodeDownloadData();
+		
+		public static MonetaryUnitNodeDownloadData MonetaryUnit
+		{
+			get; set;
+		} = new MonetaryUnitNodeDownloadData();
 
 		public static CommutercoinNodeDownloadData Commutercoin
 		{
