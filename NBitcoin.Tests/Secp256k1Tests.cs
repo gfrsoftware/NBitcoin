@@ -1319,6 +1319,26 @@ namespace NBitcoin.Tests
 
 		[Fact]
 		[Trait("UnitTest", "UnitTest")]
+		public void CanCreateScalarFromULong()
+		{
+			var fromUInt = new Scalar(uint.MaxValue);
+			fromUInt = fromUInt.Multiply(new Scalar(17));
+
+			var fromULong = new Scalar(17UL * uint.MaxValue);
+			Assert.Equal(fromULong, fromUInt);
+
+			var two = Scalar.One + Scalar.One;
+			var max = two.Sqr(6) + two.Negate();
+			var maxULong = new Scalar(ulong.MaxValue-1);
+			Assert.Equal(maxULong, max);
+
+			Assert.Equal(new Scalar(17) + new Scalar(10), new Scalar(27));
+			Assert.Equal(new Scalar(0xabcdef00_abcdef00UL) + new Scalar(0x00000001_00000000UL), new Scalar(0xabcdef01_abcdef00UL));
+			Assert.Equal(new Scalar(0x00000001_00000000UL), new Scalar(0xffffffff) + new Scalar(1));
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
 		public void CanSerializeScalar()
 		{
 			Span<byte> output = stackalloc byte[32];
@@ -2142,14 +2162,12 @@ namespace NBitcoin.Tests
 			Scalar neg1 = number;
 			Scalar neg2 = number;
 			int sign1 = 1;
-			int sign2 = 1;
-
 			if (neg1.GetBits(0, 1) == 0)
 			{
 				neg1 = neg1.Negate();
 				sign1 = -1;
 			}
-			sign2 = neg2.CondNegate(neg2.IsEven ? 1 : 0, out neg2);
+			int sign2 = neg2.CondNegate(neg2.IsEven ? 1 : 0, out neg2);
 			Assert.True(sign1 == sign2);
 			Assert.Equal(neg1, neg2);
 		}
@@ -2624,7 +2642,7 @@ namespace NBitcoin.Tests
 				//Assert.True(ecount == 2);
 				var emptykey = key.Clone();
 				emptykey.Clear();
-				
+
 				Assert.Throws<ObjectDisposedException>(() => emptykey.TrySignECDSA(msg, new PrecomputedNonceFunction(nonce2), out sig));
 				//Assert.True(ecount == 3);
 				Assert.True(key.TrySignECDSA(msg, new PrecomputedNonceFunction(nonce2), out sig));
@@ -2929,7 +2947,7 @@ namespace NBitcoin.Tests
 			//msg_arr[0] = msg32;
 			//pk_arr[0] = &pk;
 
-			Assert.Equal(expected, pk.SigVerify(sig, msg32));
+			Assert.Equal(expected, pk.SigVerifySchnorr(sig, msg32));
 			//CHECK(expected == secp256k1_schnorrsig_verify_batch(ctx, scratch, sig_arr, msg_arr, pk_arr, 1));
 		}
 
@@ -3137,6 +3155,77 @@ namespace NBitcoin.Tests
 				ECPubKey sd = new ECPubKey(in q, ctx);
 				Assert.True(ECPubKey.TryCombine(Context.Instance, d[0..i], out var sd2));
 				Assert.Equal(sd, sd2);
+			}
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
+		public void test_xonly_pubkey_tweak()
+		{
+			var tweak = new byte[32];
+			var sk = new byte[32];
+			var zero64 = new byte[64];
+			var overflow = new byte[64];
+			overflow.AsSpan().Fill(0xff);
+			secp256k1_rand256(tweak);
+			secp256k1_rand256(sk);
+			var internal_pk = Context.Instance.CreateECPrivKey(sk).CreatePubKey();
+			var internal_xonly_pk = internal_pk.ToXOnlyPubKey(out var pk_parity);
+
+			// We don't port that
+			//ecount = 0;
+			//CHECK(secp256k1_xonly_pubkey_tweak_add(none, &output_pk, &internal_xonly_pk, tweak) == 0);
+			//CHECK(ecount == 1);
+			//CHECK(secp256k1_xonly_pubkey_tweak_add(sign, &output_pk, &internal_xonly_pk, tweak) == 0);
+			//CHECK(ecount == 2);
+			var output_pk = internal_xonly_pk.AddTweak(tweak);
+			/* Invalid tweak zeroes the output_pk */
+			Assert.False(internal_xonly_pk.TryAddTweak(overflow, out _));
+			/* A zero tweak is fine */
+			Assert.True(internal_xonly_pk.TryAddTweak(zero64.AsSpan().Slice(0, 32), out _));
+
+			/* Fails if the resulting key was infinity */
+			for (var i = 0; i < count; i++)
+			{
+				/* Because sk may be negated before adding, we need to try with tweak =
+				 * sk as well as tweak = -sk. */
+				Scalar scalar_tweak = new Scalar(sk, out _);
+				scalar_tweak = scalar_tweak.Negate();
+				scalar_tweak.WriteToSpan(tweak);
+
+				Assert.True(!internal_xonly_pk.TryAddTweak(sk, out output_pk) ||
+					!internal_xonly_pk.TryAddTweak(tweak, out output_pk));
+				Assert.Null(output_pk);
+			}
+		}
+
+		/* Starts with an initial pubkey and recursively creates N_PUBKEYS - 1
+		* additional pubkeys by calling tweak_add. Then verifies every tweak starting
+		* from the last pubkey. */
+		[Fact]
+		public void test_xonly_pubkey_tweak_recursive()
+		{
+			var N_PUBKEYS = 32;
+			var sk = new byte[32];
+			var pk_serialized = new byte[32];
+			var tweak = new byte[N_PUBKEYS - 1][];
+			ECPubKey[] pk = new ECPubKey[N_PUBKEYS];
+			secp256k1_rand256(sk);
+			pk[0] = Context.Instance.CreateECPrivKey(sk).CreatePubKey();
+			for (var i = 0; i < N_PUBKEYS - 1; i++)
+			{
+				tweak[i] = new byte[32];
+				tweak[i].AsSpan().Fill((byte)(i + 1));
+				var xonly_pk = pk[i].ToXOnlyPubKey(out _);
+				pk[i + 1] = xonly_pk.AddTweak(tweak[i]);
+			}
+
+			/* Verify tweaks */
+			for (var i = N_PUBKEYS - 1; i > 0; i--)
+			{
+				var tweaked = pk[i].ToXOnlyPubKey(out var pk_parity);
+				var xonly_pk = pk[i - 1].ToXOnlyPubKey(out _);
+				Assert.True(tweaked.CheckIsTweakedWith(xonly_pk, tweak[i - 1], pk_parity));
 			}
 		}
 	}

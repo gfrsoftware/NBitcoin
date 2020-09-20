@@ -330,6 +330,7 @@ namespace NBitcoin.RPC
 		{
 			var capabilities = new RPCCapabilities();
 			var rpc = this.PrepareBatch();
+			rpc.AllowBatchFallback = true;
 			var waiting = Task.WhenAll(
 			SetVersion(capabilities),
 			CheckCapabilities(rpc, "scantxoutset", v => capabilities.SupportScanUTXOSet = v),
@@ -519,7 +520,8 @@ namespace NBitcoin.RPC
 				_BatchedRequests = new ConcurrentQueue<Tuple<RPCRequest, TaskCompletionSource<RPCResponse>>>(),
 				Capabilities = Capabilities,
 				RequestTimeout = RequestTimeout,
-				_HttpClient = _HttpClient
+				_HttpClient = _HttpClient,
+				AllowBatchFallback = AllowBatchFallback
 			};
 		}
 		public RPCClient Clone()
@@ -529,7 +531,8 @@ namespace NBitcoin.RPC
 				_BatchedRequests = _BatchedRequests,
 				Capabilities = Capabilities,
 				RequestTimeout = RequestTimeout,
-				_HttpClient = _HttpClient
+				_HttpClient = _HttpClient,
+				AllowBatchFallback = AllowBatchFallback
 			};
 		}
 
@@ -794,6 +797,20 @@ namespace NBitcoin.RPC
 				return;
 			await SendBatchAsyncCore(requests).ConfigureAwait(false);
 		}
+
+		/// <summary>
+		/// Since bitcoin core 0.20, if a RPC batch request is made, and one of the request fails due
+		/// to permission issue (whitelisting feature), the whole RPC Batch would fail, throwing a
+		/// HttpRequestException.
+		///
+		/// If we set AllowBatchFallback to true, we will fallback by sending all requests in the batch
+		/// one by one.
+		/// However, only use this for idempotent operations.
+		/// When a batch operation fails because of permission issue, some of the requests in the batch
+		/// may nevertheless have succeed without Bitcoin Core giving a clue about which one.
+		/// </summary>
+		public bool AllowBatchFallback { get; set; }
+
 		private async Task SendBatchAsyncCore(List<Tuple<RPCRequest, TaskCompletionSource<RPCResponse>>> requests)
 		{
 			var writer = new StringWriter();
@@ -846,6 +863,25 @@ namespace NBitcoin.RPC
 								if (TryRenewCookie())
 									goto retry;
 								httpResponse.EnsureSuccessStatusCode(); // Let's throw
+							}
+							// Bitcoin RPC 0.20 whitelisting feature throw a forbidden status
+							// code if one of the message fail. So we fall back to un-batched
+							// request. However, this might result in some requests being executed twice...
+							if (AllowBatchFallback && httpResponse.StatusCode == HttpStatusCode.Forbidden)
+							{
+								foreach (var req in requests)
+								{
+									try
+									{
+										var resp = await SendCommandAsync(req.Item1);
+										req.Item2.TrySetResult(resp);
+									}
+									catch (Exception ex)
+									{
+										req.Item2.TrySetException(ex);
+									}
+								}
+								return;
 							}
 							if (httpResponse.Content == null ||
 								(httpResponse.Content.Headers.ContentLength == null || httpResponse.Content.Headers.ContentLength.Value == 0) ||
@@ -1368,6 +1404,97 @@ namespace NBitcoin.RPC
 			return header;
 		}
 
+		public GetBlockRPCResponse GetBlock(uint256 blockHash, GetBlockVerbosity verbosity)
+		{
+			return GetBlockAsync(blockHash, verbosity).GetAwaiter().GetResult();
+		}
+
+		public async Task<GetBlockRPCResponse> GetBlockAsync(uint256 blockHash, GetBlockVerbosity verbosity)
+		{
+			var resp = await SendCommandAsync("getblock", blockHash, (int)verbosity).ConfigureAwait(false);
+			return ParseVerboseBlock(resp, (int)verbosity);
+		}
+
+		private GetBlockRPCResponse ParseVerboseBlock(RPCResponse resp, int verbosity)
+		{
+			var json = (JObject)resp.Result;
+			var blockHeader = Network.Consensus.ConsensusFactory.CreateBlockHeader();
+			blockHeader.Bits = new Target(Encoders.Hex.DecodeData(json.Value<string>("bits")));
+			blockHeader.Version = json.Value<int>("version");
+			blockHeader.HashMerkleRoot = new uint256(json.Value<string>("merkleroot"));
+			blockHeader.BlockTime = Utils.UnixTimeToDateTime(json.Value<uint>("time"));
+			blockHeader.Nonce = json.Value<uint>("nonce");
+
+			// prevblock field does not exist for the genesis.
+			if (json.TryGetValue("previousblockhash", StringComparison.Ordinal, out var prevBlockHash))
+			{
+				blockHeader.HashPrevBlock = uint256.Parse(prevBlockHash.ToString());
+			}
+			else
+			{
+				blockHeader.HashPrevBlock = null;
+			}
+			// nextblockhash field does not exist for the chain tip.
+			uint256 nextBlockHash = null;
+			if (json.TryGetValue("nextblockhash", StringComparison.Ordinal, out var nextBlockHashHex))
+			{
+				nextBlockHash = uint256.Parse(nextBlockHashHex.ToString());
+			}
+
+			Block block = null;
+			var txids = new List<uint256>();
+			if (verbosity == 2)
+			{
+				var txs = new List<Transaction>();
+				foreach (var txInfo in json.Value<JArray>("tx"))
+				{
+
+					var tx = ParseTxHex(txInfo.Value<string>("hex"));
+					txs.Add(tx);
+					txids.Add(tx.GetHash());
+				}
+				block = Network.Consensus.ConsensusFactory.CreateBlock();
+				block.Header = blockHeader;
+				block.Transactions = txs;
+				if (!block.GetMerkleRoot().Hash.Equals(blockHeader.HashMerkleRoot))
+				{
+					throw new FormatException($"Bogus GetBlockRPCResponse! merkle root mistmach (expected: {blockHeader.HashMerkleRoot}. actual: {block.GetMerkleRoot().Hash})");
+				}
+			}
+			else if (verbosity == 1)
+			{
+				foreach (var tx in json.Value<JArray>("tx"))
+				{
+					txids.Add(uint256.Parse(tx.ToString()));
+				}
+			}
+			else
+			{
+				throw new Exception("Unreachable!");
+			}
+
+			var nTx = json.Value<int>("nTx");
+			if (nTx != txids.Count)
+			{
+				throw new FormatException($"Bogus GetBlockRPCResponse! nTx mismatch (expected: {nTx}. actual: {txids.Count})");
+			}
+			return new GetBlockRPCResponse() {
+				Confirmations = json.Value<int>("confirmations"),
+				Size = json.Value<int>("size"),
+				StrippedSize = json.Value<int>("strippedsize"),
+				Weight = json.Value<int>("weight"),
+				Height = json.Value<int>("height"),
+				VersionHex = json.Value<string>("versionHex"),
+				MedianTimeUnix = json.Value<uint>("mediantime"),
+				Difficulty = json.Value<double>("difficulty"),
+				ChainWork = uint256.Parse(json.Value<string>("chainwork")),
+				NextBlockHash = nextBlockHash,
+				Block = block,
+				Header = blockHeader,
+				TxIds = txids,
+			};
+		}
+
 		public uint256 GetBlockHash(int height)
 		{
 			var resp = SendCommand(RPCOperations.getblockhash, height);
@@ -1439,6 +1566,21 @@ namespace NBitcoin.RPC
 		{
 			var response = await SendCommandAsync(RPCOperations.getmempoolinfo);
 
+			static IEnumerable<FeeRateGroup> ExtractFeeRateGroups(JToken jt) =>
+				jt switch {
+					JObject jo => jo.Properties()
+						.Where(p => p.Name != "total_fees")
+						.Select( p => new FeeRateGroup
+						{
+							Group = int.Parse(p.Name),
+							Sizes = p.Value.Value<ulong>("sizes"),
+							Count = p.Value.Value<uint>("count"),
+							Fees = Money.Satoshis(p.Value.Value<ulong>("fees")),
+							From = new FeeRate(Money.Satoshis(p.Value.Value<ulong>("from_feerate"))),
+							To = new FeeRate(Money.Satoshis(p.Value.Value<ulong>("to_feerate")))
+						}),
+					_ => Enumerable.Empty<FeeRateGroup>() };
+
 			return new MemPoolInfo()
 			{
 				Size = Int32.Parse((string)response.Result["size"], CultureInfo.InvariantCulture),
@@ -1446,7 +1588,8 @@ namespace NBitcoin.RPC
 				Usage = Int32.Parse((string)response.Result["usage"], CultureInfo.InvariantCulture),
 				MaxMemPool = Double.Parse((string)response.Result["maxmempool"], CultureInfo.InvariantCulture),
 				MemPoolMinFee = Double.Parse((string)response.Result["mempoolminfee"], CultureInfo.InvariantCulture),
-				MinRelayTxFee = Double.Parse((string)response.Result["minrelaytxfee"], CultureInfo.InvariantCulture)
+				MinRelayTxFee = Double.Parse((string)response.Result["minrelaytxfee"], CultureInfo.InvariantCulture),
+				Histogram = ExtractFeeRateGroups(response.Result["fee_histogram"]).ToArray()
 			};
 		}
 
@@ -1884,7 +2027,13 @@ namespace NBitcoin.RPC
 		{
 			if (Capabilities == null || Capabilities.SupportEstimateSmartFee)
 			{
-				var request = new RPCRequest(RPCOperations.estimatesmartfee.ToString(), new object[] { confirmationTarget, estimateMode.ToString().ToUpperInvariant() });
+				var parameters = new List<object>() { confirmationTarget };
+				if (estimateMode != EstimateSmartFeeMode.Conservative)
+				{
+					parameters.Add(estimateMode.ToString().ToUpperInvariant());
+				}
+
+				var request = new RPCRequest(RPCOperations.estimatesmartfee.ToString(), parameters.ToArray());
 
 				var response = await SendCommandAsync(request, throwIfRPCError: false).ConfigureAwait(false);
 

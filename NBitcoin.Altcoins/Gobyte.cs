@@ -49,9 +49,7 @@ using System.Threading.Tasks;
 		}
  		public class GoByteBlock : Block
 		{
-#pragma warning disable CS0612 // Type or member is obsolete
 			public GoByteBlock(GoByteBlockHeader h) : base(h)
-#pragma warning restore CS0612 // Type or member is obsolete
 			{
  			}
 			public override ConsensusFactory GetConsensusFactory()
@@ -64,13 +62,8 @@ using System.Threading.Tasks;
 		{
 			RegisterDefaultCookiePath("GoByteCore");
 		}
- 		static uint256 GetPoWHash(BlockHeader header)
-		{
-			var headerBytes = header.ToBytes();
-			var h = NBitcoin.Crypto.SCrypt.ComputeDerivedKey(headerBytes, headerBytes, 1024, 1, 1, null, 32);
-			return new uint256(h);
-		}
- 		protected override NetworkBuilder CreateMainnet()
+
+		protected override NetworkBuilder CreateMainnet()
 		{
 			var builder = new NetworkBuilder();
 			builder.SetConsensus(new Consensus()

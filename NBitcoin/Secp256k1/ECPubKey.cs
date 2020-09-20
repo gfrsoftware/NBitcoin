@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NBitcoin.Secp256k1
 {
@@ -26,7 +27,7 @@ namespace NBitcoin.Secp256k1
 		internal
 # endif
 		readonly Context ctx;
-		public ECPubKey(in GE groupElement, Context context)
+		public ECPubKey(in GE groupElement, Context? context)
 		{
 			if (groupElement.IsInfinity)
 			{
@@ -36,6 +37,21 @@ namespace NBitcoin.Secp256k1
 			var y = groupElement.y.NormalizeVariable();
 			Q = new GE(x, y);
 			this.ctx = context ?? Context.Instance;
+		}
+
+		public virtual ECXOnlyPubKey ToXOnlyPubKey()
+		{
+			return ToXOnlyPubKey(out _);
+		}
+		public virtual ECXOnlyPubKey ToXOnlyPubKey(out bool parity)
+		{
+			if (!Q.y.IsOdd)
+			{
+				parity = false;
+				return new ECXOnlyPubKey(Q, ctx);
+			}
+			parity = true;
+			return new ECXOnlyPubKey(new GE(Q.x, Q.y.Negate(1)), ctx);
 		}
 
 		public void WriteToSpan(bool compressed, Span<byte> output, out int length)
@@ -87,7 +103,7 @@ namespace NBitcoin.Secp256k1
 			}
 		}
 
-		public static bool TryCreate(ReadOnlySpan<byte> input, Context ctx, out bool compressed, out ECPubKey? pubkey)
+		public static bool TryCreate(ReadOnlySpan<byte> input, Context ctx, out bool compressed, [MaybeNullWhen(false)] out ECPubKey pubkey)
 		{
 			GE Q;
 			pubkey = null;
@@ -97,7 +113,7 @@ namespace NBitcoin.Secp256k1
 			GE.Clear(ref Q);
 			return true;
 		}
-		public static bool TryCreateRawFormat(ReadOnlySpan<byte> input, Context ctx, out ECPubKey? pubkey)
+		public static bool TryCreateRawFormat(ReadOnlySpan<byte> input, Context ctx, [MaybeNullWhen(false)] out ECPubKey pubkey)
 		{
 			if (input.Length != 64)
 			{
@@ -269,10 +285,9 @@ namespace NBitcoin.Secp256k1
 			if (tweak.Length != 32)
 				return false;
 			Scalar term;
-			bool ret = false;
-			int overflow = 0;
+			int overflow;
 			term = new Scalar(tweak, out overflow);
-			ret = overflow == 0;
+			bool ret = overflow == 0;
 			var p = Q;
 			if (ret)
 			{
@@ -338,11 +353,9 @@ namespace NBitcoin.Secp256k1
 			if (tweak.Length != 32)
 				return false;
 			Scalar factor;
-			bool ret = false;
-			int overflow = 0;
-
+			int overflow;
 			factor = new Scalar(tweak, out overflow);
-			ret = overflow == 0;
+			bool ret = overflow == 0;
 			var p = Q;
 			if (ret)
 			{

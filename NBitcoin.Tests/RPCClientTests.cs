@@ -19,6 +19,7 @@ using FsCheck.Xunit;
 using FsCheck;
 using NBitcoin.Tests.Generators;
 using static NBitcoin.Tests.Comparer;
+using System.Net.Http;
 
 namespace NBitcoin.Tests
 {
@@ -28,8 +29,6 @@ namespace NBitcoin.Tests
 	[Trait("RPCClient", "RPCClient")]
 	public class RPCClientTests
 	{
-		const string TestAccount = "NBitcoin.RPCClientTests";
-
 		public PSBTComparer PSBTComparerInstance { get; }
 		public ITestOutputHelper Output { get; }
 
@@ -191,6 +190,35 @@ namespace NBitcoin.Tests
 				var memPoolInfo = rpc.GetMemPool();
 				Assert.NotNull(memPoolInfo);
 				Assert.Equal(1, memPoolInfo.Size);
+			}
+		}
+
+		[Fact]
+		public async Task RPCBatchingCanFallbackIfAccessForbidden()
+		{
+			using (var builder = NodeBuilderEx.Create())
+			{
+				var node = builder.CreateNode();
+				node.CookieAuth = false;
+				node.ConfigParameters.Add("rpcwhitelist", $"{node.RPCCredentials.UserName}:getnetworkinfo,getblock,getblockhash");
+				builder.StartAll();
+
+				var rpc = node.CreateRPCClient();
+				var orig = rpc;
+				rpc.AllowBatchFallback = true;
+				rpc = rpc.PrepareBatch();
+				// Should be denied
+				var sending = rpc.SendToAddressAsync(new Key().PubKey.GetAddress(ScriptPubKeyType.Legacy, rpc.Network), Money.Coins(1.0m), "hello", "world");
+				// Should give network info
+				var gettingNetworkInfo = rpc.SendCommandAsync(RPCOperations.getnetworkinfo);
+				await rpc.SendBatchAsync();
+
+				await Assert.ThrowsAsync<HttpRequestException>(async () => await sending);
+				var resp = await gettingNetworkInfo;
+				// Should not throw
+				resp.ThrowIfError();
+				orig.AllowBatchFallback = false;
+				await orig.ScanRPCCapabilitiesAsync();
 			}
 		}
 
@@ -1102,8 +1130,8 @@ namespace NBitcoin.Tests
 				var mempoolEntry = rpc.GetMempoolEntry(txs[3]);
 				Assert.Equal(4, mempoolEntry.AncestorCount);
 				Assert.Equal(7, mempoolEntry.DescendantCount);
-				Assert.Equal(1, (int)mempoolEntry.SpentBy.Length);
-				Assert.Equal(1, (int)mempoolEntry.Depends.Length);
+				Assert.Single(mempoolEntry.SpentBy);
+				Assert.Single(mempoolEntry.Depends);
 
 				// Here we spend the change of the second transaction
 				var funding = rpc.GetRawTransaction(txs[1]);
@@ -1126,20 +1154,20 @@ namespace NBitcoin.Tests
 				mempoolEntry = rpc.GetMempoolEntry(txs[1]);
 				Assert.Equal(2, mempoolEntry.AncestorCount);
 				Assert.Equal(10, mempoolEntry.DescendantCount);
-				Assert.Equal(2, (int)mempoolEntry.SpentBy.Length);
-				Assert.Equal(1, (int)mempoolEntry.Depends.Length);
+				Assert.Equal(2, mempoolEntry.SpentBy.Length);
+				Assert.Single(mempoolEntry.Depends);
 
 				mempoolEntry = rpc.GetMempoolEntry(txx);
 				Assert.Equal(3, mempoolEntry.AncestorCount);
 				Assert.Equal(1, mempoolEntry.DescendantCount);
-				Assert.Equal(0, (int)mempoolEntry.SpentBy.Length);
-				Assert.Equal(1, (int)mempoolEntry.Depends.Length);
+				Assert.Empty(mempoolEntry.SpentBy);
+				Assert.Single(mempoolEntry.Depends);
 
 				mempoolEntry = rpc.GetMempoolEntry(txs[3]);
 				Assert.Equal(4, mempoolEntry.AncestorCount);
 				Assert.Equal(7, mempoolEntry.DescendantCount);
-				Assert.Equal(1, (int)mempoolEntry.SpentBy.Length);
-				Assert.Equal(1, (int)mempoolEntry.Depends.Length);
+				Assert.Single(mempoolEntry.SpentBy);
+				Assert.Single(mempoolEntry.Depends);
 			}
 		}
 
@@ -1168,6 +1196,68 @@ namespace NBitcoin.Tests
 				var mempoolEntry = rpc.GetMempoolEntry(uint256.One, throwIfNotFound: false);
 				Assert.Null(mempoolEntry);
 			}
+		}
+
+
+		class HardcodedResponseClientHandler : HttpMessageHandler
+		{
+			private readonly string _content;
+
+			public HardcodedResponseClientHandler(string content)
+			{
+				_content = content;
+			}
+
+			protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+			{
+				return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+				{
+					Content = new StringContent(_content)
+				});
+			}
+		}
+
+		[Fact]
+		public void MempoolInfoWithHistogram()
+		{
+			using var httpClient = new HttpClient(new HardcodedResponseClientHandler(
+				"{" +
+				"	\"result\": {" +
+				"	  \"loaded\": true," +
+				"	  \"size\": 2184," +
+				"	  \"bytes\": 4529888," +
+				"	  \"usage\": 17260240," +
+				"	  \"maxmempool\": 300000000," +
+				"	  \"mempoolminfee\": 0.00001000," +
+				"	  \"minrelaytxfee\": 0.00001000," +
+				"	  \"fee_histogram\": {" +
+				"	    \"1\": {" +
+				"	      \"sizes\": 2184356," +
+				"	      \"count\": 400," +
+				"	      \"fees\": 2277259," +
+				"	      \"from_feerate\": 1," +
+				"	      \"to_feerate\": 2" +
+				"	    }," +
+				"	    \"200\": {" +
+				"	      \"sizes\": 17065," +
+				"	      \"count\": 67," +
+				"	      \"fees\": 3841448," +
+				"	      \"from_feerate\": 200," +
+				"	      \"to_feerate\": 250" +
+				"	    }," +
+				"	    \"total_fees\": 61420473" +
+				"	  }" +
+				"	}" + 
+				"}"
+			));
+			var rpcClient = new RPCClient(Network.Main);
+			rpcClient.HttpClient = httpClient;
+			var mempool = rpcClient.GetMemPool();
+			var histogram = mempool.Histogram;
+
+			Assert.Equal(2, histogram.Count());
+			Assert.Equal(1, histogram.First().Group);
+			Assert.Equal(200, histogram.Last().Group);
 		}
 
 		[Fact]
@@ -1412,8 +1502,6 @@ namespace NBitcoin.Tests
 #endif
 		}
 
-
-
 		[Fact]
 		public void RPCSendRPCException()
 		{
@@ -1433,24 +1521,6 @@ namespace NBitcoin.Tests
 					{
 						Assert.False(true, "Should have thrown RPC_METHOD_NOT_FOUND");
 					}
-				}
-			}
-		}
-
-		void WaitAssert(Action act)
-		{
-			int totalTry = 30;
-			while (totalTry > 0)
-			{
-				try
-				{
-					act();
-					return;
-				}
-				catch (AssertActualExpectedException)
-				{
-					Thread.Sleep(100);
-					totalTry--;
 				}
 			}
 		}
@@ -1855,6 +1925,57 @@ namespace NBitcoin.Tests
 			}
 		}
 
+		[Fact]
+		public async Task GetBlockVerboseTests()
+		{
+			using (var builder = NodeBuilderEx.Create())
+			{
+				var node = builder.CreateNode();
+				await node.StartAsync();
+				var cli = node.CreateRPCClient();
+
+				// case 1: genesis block
+				var verboseGenesis = await cli.GetBlockAsync(Network.RegTest.GenesisHash, GetBlockVerbosity.WithFullTx);
+				Assert.True(verboseGenesis.Block.ToBytes().SequenceEqual(Network.RegTest.GetGenesis().ToBytes()));
+				Assert.Equal(0, verboseGenesis.Height);
+				var height = await cli.GetBlockCountAsync();
+				Assert.Equal(height + 1, verboseGenesis.Confirmations);
+				Assert.Equal(285, verboseGenesis.StrippedSize);
+				Assert.Equal(285, verboseGenesis.Size);
+				Assert.Equal(1140, verboseGenesis.Weight);
+				Assert.Equal(0, verboseGenesis.Height);
+				Assert.Equal("00000001", verboseGenesis.VersionHex);
+				Assert.Equal(1, verboseGenesis.Block.Header.Version);
+				Assert.Equal(Network.RegTest.GenesisHash, verboseGenesis.Block.GetHash());
+				Assert.Equal(uint256.Parse("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), verboseGenesis.Block.Transactions.First().GetHash());
+				Assert.Single(verboseGenesis.Block.Transactions);
+				Assert.Equal(verboseGenesis.MedianTime, verboseGenesis.Block.Header.BlockTime);
+				Assert.Equal(2u, verboseGenesis.Block.Header.Nonce);
+				Assert.Equal(new Target(0x207fffff), verboseGenesis.Block.Header.Bits);
+				Assert.Equal(4.656542373906925e-10, verboseGenesis.Difficulty);
+				Assert.Equal(uint256.Parse("0000000000000000000000000000000000000000000000000000000000000002"), verboseGenesis.ChainWork);
+
+				// NextBlockHash must be included iff the block is not on the tip.
+				Assert.Null(verboseGenesis.NextBlockHash);
+				var addr = await cli.GetNewAddressAsync();
+				await cli.GenerateToAddressAsync(1, addr);
+				verboseGenesis = await cli.GetBlockAsync(Network.RegTest.GenesisHash, GetBlockVerbosity.WithOnlyTxId);
+				Assert.NotNull(verboseGenesis.NextBlockHash);
+				Assert.Null(verboseGenesis.Block); // there will be no Block if we specify false to second argument.
+				Assert.NotNull(verboseGenesis.TxIds); // But txids are still there.
+				Assert.Single(verboseGenesis.TxIds);
+
+				// case 2: next block.
+				var secondBlockHash = await cli.GetBestBlockHashAsync();
+				var verboseBestBlock = await cli.GetBlockAsync(secondBlockHash, GetBlockVerbosity.WithOnlyTxId);
+				Assert.Equal(Network.RegTest.GenesisHash, verboseBestBlock.Header.HashPrevBlock);
+				Assert.Null(verboseBestBlock.NextBlockHash);
+
+				await cli.GenerateToAddressAsync(1, addr);
+				verboseBestBlock = await cli.GetBlockAsync(secondBlockHash, GetBlockVerbosity.WithOnlyTxId);
+				Assert.NotNull(verboseBestBlock.NextBlockHash);
+			}
+		}
 
 		private void AssertJsonEquals(string json1, string json2)
 		{

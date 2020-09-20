@@ -176,7 +176,7 @@ namespace NBitcoin.Tests
 					Archive = "bitcoin-{0}-x86_64-linux-gnu.tar.gz",
 					DownloadLink = "https://bitcoincore.org/bin/bitcoin-core-{0}/bitcoin-{0}-x86_64-linux-gnu.tar.gz",
 					Executable = "bitcoin-{0}/bin/bitcoind",
-					Hash = "081b30b0f1af95656242c83eef30bbf7216b1a30fa8e8f29b3b160fe520d28f6"
+					Hash = "35ec10f87b6bc1e44fd9cd1157e5dfa483eaf14d7d9a9c274774539e7824c427"
 				},
 				Mac = new NodeOSDownloadData()
 				{
@@ -698,6 +698,25 @@ namespace NBitcoin.Tests
 					Hash = "7dc0f84799d025e7acbf13a985d69c2069f8e401b7d493766632a5339c1db8f8"
 				}
 			};
+
+			public NodeDownloadData v0_90_9_5 = new NodeDownloadData()
+			{
+				Version = "0.90.9.5",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/bitcore-win64-daemon.zip",
+					Archive = "bitcore-win64-daemon.zip",
+					Executable = "bitcored.exe",
+					Hash = "5c492b741aceb47e430378d3027ed371f341fed25b11a293a363044ab891e1aa"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/LIMXTEC/BitCore/releases/download/{0}/bitcore-x86_64-linux-gnu_no-wallet.tar.gz",
+					Archive = "bitcore-x86_64-linux-gnu_no-wallet.tar.gz",
+					Executable = "bin/bitcored",
+					Hash = "60545a5733ab79a2a9c699295572475aefc0164e74da487b2857a961356ec787"
+				}
+			};
 		}
 
 		public class MonacoinNodeDownloadData
@@ -881,6 +900,33 @@ namespace NBitcoin.Tests
 					Archive = "groestlcoin-{0}-win64.zip",
 					Executable = "groestlcoin-{0}/bin/groestlcoind.exe",
 					Hash = "27e1518b80d6212bc7dcb45fd20d4b12553f8872600996aedd8bf3dd33783e48"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/Groestlcoin/groestlcoin/releases/download/v{0}/groestlcoin-{0}-x86_64-linux-gnu.tar.gz",
+					Archive = "groestlcoin-{0}-x86_64-linux-gnu.tar.gz",
+					Executable = "groestlcoin-{0}/bin/groestlcoind",
+					Hash = "0646cae023a0be0821f357d33bdbf81fc05fc9a9e3e9d4e5936d5053f1a988d4"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/Groestlcoin/groestlcoin/releases/download/v{0}/groestlcoin-{0}-osx64.tar.gz",
+					Archive = "groestlcoin-{0}-osx64.tar.gz",
+					Executable = "groestlcoin-{0}/bin/groestlcoind",
+					Hash = "902d38bea03fded2762acd1855cddd4a7b210acac9921ea56d816e622c4244ba"
+				},
+				UseSectionInConfigFile = true
+			};
+
+			public NodeDownloadData v2_20_1 = new NodeDownloadData()
+			{
+				Version = "2.20.1",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/Groestlcoin/groestlcoin/releases/download/v{0}/groestlcoin-{0}-win64.zip",
+					Archive = "groestlcoin-{0}-win64.zip",
+					Executable = "groestlcoin-{0}/bin/groestlcoind.exe",
+					Hash = "d7b506074aa0fe66c77106c4cc7123923be169b17ee015bc0433d6a3edb9278c"
 				},
 				Linux = new NodeOSDownloadData()
 				{
@@ -1282,27 +1328,27 @@ namespace NBitcoin.Tests
 		{
 			public NodeDownloadData v5_1_1 = new NodeDownloadData()
 			{
-				Version = "5.1.1",
+				Version = "5.2.2",
 				Windows = new NodeOSDownloadData()
 				{
-					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.0.1/DogeCash-5.0.1-win32.zip",
-					Archive = "DogeCash-5.0.1-win32.zip",
+					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.2.2/DogeCash-5.2.2-win32.zip",
+					Archive = "DogeCash-5.2.2-win32.zip",
 					Executable = "dogecashd.exe",
-					Hash = "d78968049874617b9703323bf9ca03a8d140ebf605fff415437693abe3ccc5a0"
+					Hash = "ca9bb0d8e8dc9733b839ba71e626f8e1d20f4869d7105e2145193a793294acdf"
 				},
 				Linux = new NodeOSDownloadData()
 				{
-					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.0.1/DogeCash-5.0.1-x86_64-linux-gnu.tar.gz",
-					Archive = "DogeCash-5.0.1-x86_64-linux-gnu.tar.gz",
+					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.2.2/DogeCash-5.2.2-x86_64-linux-gnu.tar.gz",
+					Archive = "DogeCash-5.2.2-x86_64-linux-gnu.tar.gz",
 					Executable = "dogecashd",
-					Hash = "D8738E8C3D97A3B776414278991EDCCD1E555756713911FDC21E77836D00A3F9"
+					Hash = "95b5bd3155f5bed6f91aa8a240f525f8f75ff7a6e7e276aa0a1acfa016ddfaae"
 				},
 				Mac = new NodeOSDownloadData()
 				{
-					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.0.1/DogeCash-5.0.1-osx-unsigned.dmg",
-					Archive = "DogeCash-5.0.1-osx-unsigned.dmg",
-					Executable = "DogeCash-5.0.1-osx-unsigned.dmg",
-					Hash = "13B0DBF2480EB47D2B8A5B82145FE2FC87AEF22CB5CDF78E01C27A41C8CD41D1"
+					DownloadLink = "https://github.com/dogecash/dogecash/releases/download/v5.2.2/DogeCash-5.2.2-osx-unsigned.dmg",
+					Archive = "DogeCash-5.2.2-osx-unsigned.dmg",
+					Executable = "DogeCash-5.2.2-osx-unsigned.dmg",
+					Hash = "559ce13c257ed4378ae017d8b9b862d1e5a4a83e8fbe33ce1c51eea2fc088d56"
 				}
 			};
 		}
@@ -1368,7 +1414,7 @@ namespace NBitcoin.Tests
 				UseSectionInConfigFile = true
 			};
 		}
-		
+
 		public class MonetaryUnitNodeDownloadData
 		{
 			public NodeDownloadData v2_1_6 = new NodeDownloadData()
@@ -1397,6 +1443,43 @@ namespace NBitcoin.Tests
 				}
 			};
 		}
+
+
+		public class LBRYCreditsNodeDownloadData
+		{
+			public NodeDownloadData v2_1_6 = new NodeDownloadData()
+			{
+				Version = "2.1.6",
+				Windows = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/lbryio/lbrycrd/releases/download/v0.17.3.2/lbrycrd-windows-1732.zip",
+					Archive = "lbrycrd-windows-1732.zip",
+					Executable = "lbrycrdd.exe",
+					Hash = "272bed01b1d62a51f8586c600c2be59f052236760b8f08c9b012ecf64edd726b"
+				},
+				Linux = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/lbryio/lbrycrd/releases/download/v0.17.3.2/lbrycrd-linux-1732.zip",
+					Archive = "lbrycrd-windows-1732.zip",
+					Executable = "lbrycrdd",
+					Hash = "7d0de93a178553a5832b6c560ceb1c270047a124b834d875a772d4dcebac9056"
+				},
+				Mac = new NodeOSDownloadData()
+				{
+					DownloadLink = "https://github.com/lbryio/lbrycrd/releases/download/v0.17.3.2/lbrycrd-darwin-1732.zip",
+					Archive = "lbrycrd-darwin-1732.zip",
+					Executable = "lbrycrdd",
+					Hash = "65cd5c79c51758def40c723b532760381662c5439ae07f313761446475b73afc"
+				}
+			};
+		}
+
+
+
+		public static LBRYCreditsNodeDownloadData LBRYCredits
+		{
+			get; set;
+		} = new LBRYCreditsNodeDownloadData();
 
 		public class CommutercoinNodeDownloadData
 		{
@@ -1576,7 +1659,7 @@ namespace NBitcoin.Tests
 		{
 			get; set;
 		} = new QtumNodeDownloadData();
-		
+
 		public static MonetaryUnitNodeDownloadData MonetaryUnit
 		{
 			get; set;

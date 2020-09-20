@@ -12,17 +12,45 @@ namespace NBitcoin.Secp256k1
 #endif
 	class SHA256 : IDisposable
 	{
+		public void Initialize()
+		{
+			sha.Initialize();
+			_Pos = 0;
+		}
+		/// <summary>
+		/// Initializes a sha256 struct and writes the 64 byte string
+		/// SHA256(tag)||SHA256(tag) into it.
+		/// </summary>
+		/// <param name="tag"></param>
+		public void InitializeTagged(ReadOnlySpan<byte> tag)
+		{
+			Span<byte> buf = stackalloc byte[32];
+			Initialize();
+			Write(tag);
+			GetHash(buf);
+			Initialize();
+			Write(buf);
+			Write(buf);
+		}
+		/// <summary>
+		/// Initializes a sha256 struct and writes the 64 byte string
+		/// SHA256(tag)||SHA256(tag) into it.
+		/// </summary>
+		/// <param name="tag"></param>
+		public void InitializeTagged(string tag)
+		{
+			InitializeTagged(Encoding.ASCII.GetBytes(tag));
+		}
 		SHA256Managed sha = new SHA256Managed();
 		int _Pos;
 		byte[] _Buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(64);
 		public void Write(ReadOnlySpan<byte> buffer)
 		{
 			int copied = 0;
-			int toCopy = 0;
 			var innerSpan = new Span<byte>(_Buffer, _Pos, _Buffer.Length - _Pos);
 			while (!buffer.IsEmpty)
 			{
-				toCopy = Math.Min(innerSpan.Length, buffer.Length);
+				int toCopy = Math.Min(innerSpan.Length, buffer.Length);
 				buffer.Slice(0, toCopy).CopyTo(innerSpan.Slice(0, toCopy));
 				buffer = buffer.Slice(toCopy);
 				innerSpan = innerSpan.Slice(toCopy);

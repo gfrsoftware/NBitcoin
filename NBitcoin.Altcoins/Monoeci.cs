@@ -59,11 +59,8 @@ namespace NBitcoin.Altcoins
 
 		public class MonoeciBlock : Block
 		{
-#pragma warning disable CS0612 // Type or member is obsolete
 			public MonoeciBlock(MonoeciBlockHeader h) : base(h)
-#pragma warning restore CS0612 // Type or member is obsolete
 			{
-
 			}
 			public override ConsensusFactory GetConsensusFactory()
 			{
@@ -72,18 +69,9 @@ namespace NBitcoin.Altcoins
 		}
 #pragma warning restore CS0618 // Type or member is obsolete
 
-
 		protected override void PostInit()
 		{
 			RegisterDefaultCookiePath("MonoeciCore");
-		}
-
-
-		static uint256 GetPoWHash(BlockHeader header)
-		{
-			var headerBytes = header.ToBytes();
-			var h = NBitcoin.Crypto.SCrypt.ComputeDerivedKey(headerBytes, headerBytes, 1024, 1, 1, null, 32);
-			return new uint256(h);
 		}
 
 		protected override NetworkBuilder CreateMainnet()

@@ -8,14 +8,12 @@ namespace NBitcoin.Altcoins
 {
     public class ForkIdTransaction : Transaction, IHasForkId
 	{
-#pragma warning disable CS0618 // Type or member is obsolete
 		public ForkIdTransaction(uint forkId, bool supportSegwit, ConsensusFactory consensusFactory)
 		{
 			_ForkId = forkId;
 			_SupportSegwit = supportSegwit;
 			_Factory = consensusFactory;
 		}
-#pragma warning restore CS0618 // Type or member is obsolete
 
 		ConsensusFactory _Factory;
 		public override ConsensusFactory GetConsensusFactory()
@@ -91,13 +89,13 @@ namespace NBitcoin.Altcoins
 				sss.ReadWrite(Inputs[nIn].PrevOut);
 				sss.ReadWrite(scriptCode);
 				sss.ReadWrite(spentOutput.Value.Satoshi);
-				sss.ReadWrite((uint)Inputs[nIn].Sequence);
+				sss.ReadWrite(Inputs[nIn].Sequence);
 				// Outputs (none/one/all, depending on flags)
 				sss.ReadWrite(hashOutputs);
 				// Locktime
 				sss.ReadWriteStruct(LockTime);
 				// Sighash type
-				sss.ReadWrite((uint)nForkHashType);
+				sss.ReadWrite(nForkHashType);
 
 				return GetHash(sss);
 			}
@@ -174,7 +172,7 @@ namespace NBitcoin.Altcoins
 			//Serialize TxCopy, append 4 byte hashtypecode
 			var stream = CreateHashWriter(sigversion);
 			txCopy.ReadWrite(stream);
-			stream.ReadWrite((uint)nForkHashType);
+			stream.ReadWrite(nForkHashType);
 			return GetHash(stream);
 		}
 
@@ -208,7 +206,7 @@ namespace NBitcoin.Altcoins
 			BitcoinStream ss = CreateHashWriter(HashVersion.Witness);
 			foreach(var input in Inputs)
 			{
-				ss.ReadWrite((uint)input.Sequence);
+				ss.ReadWrite(input.Sequence);
 			}
 			hashSequence = GetHash(ss);
 			return hashSequence;

@@ -66,11 +66,8 @@ namespace NBitcoin.Altcoins
 
 		public class GincoinBlock : Block
 		{
-#pragma warning disable CS0612 // Type or member is obsolete
 			public GincoinBlock(GincoinBlockHeader h) : base(h)
-#pragma warning restore CS0612 // Type or member is obsolete
 			{
-
 			}
 			public override ConsensusFactory GetConsensusFactory()
 			{
@@ -82,13 +79,6 @@ namespace NBitcoin.Altcoins
 		protected override void PostInit()
 		{
 			RegisterDefaultCookiePath("GincoinCore");
-		}
-
-		static uint256 GetPoWHash(BlockHeader header)
-		{
-			var headerBytes = header.ToBytes();
-			var h = SCrypt.ComputeDerivedKey(headerBytes, headerBytes, 1024, 1, 1, null, 32);
-			return new uint256(h);
 		}
 
 		protected override NetworkBuilder CreateMainnet()

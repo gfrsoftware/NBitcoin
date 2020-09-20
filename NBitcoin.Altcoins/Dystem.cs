@@ -56,9 +56,7 @@ namespace NBitcoin.Altcoins
 
 		public class DystemBlock : Block
 		{
-#pragma warning disable CS0612 // Type or member is obsolete
 			public DystemBlock(DystemBlockHeader h) : base(h)
-#pragma warning restore CS0612 // Type or member is obsolete
 			{
 			}
 
@@ -72,13 +70,6 @@ namespace NBitcoin.Altcoins
 		protected override void PostInit()
 		{
 			RegisterDefaultCookiePath("Dystem");
-		}
-
-		private static uint256 GetPoWHash(BlockHeader header)
-		{
-			var headerBytes = header.ToBytes();
-			var h = SCrypt.ComputeDerivedKey(headerBytes, headerBytes, 1024, 1, 1, null, 32);
-			return new uint256(h);
 		}
 
 		protected override NetworkBuilder CreateMainnet()

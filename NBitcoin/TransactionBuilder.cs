@@ -15,6 +15,7 @@ using Builder = System.Action<NBitcoin.TransactionBuilder.TransactionBuildingCon
 using AssetBuilder = System.Action<NBitcoin.TransactionBuilder.TransactionBuildingContext>;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NBitcoin
 {
@@ -516,6 +517,10 @@ namespace NBitcoin
 				/// Then we can do a second pass with the right Size fee.
 				/// </summary>
 				public Money SizeFee { get; set; } = Money.Zero;
+				/// <summary>
+				/// The minimum UTXO value to select
+				/// </summary>
+				public Money MinValue { get; set; } = Money.Zero;
 			}
 			public TransactionBuildingContext(TransactionBuilder builder)
 			{
@@ -752,6 +757,22 @@ namespace NBitcoin
 		}
 
 		/// <summary>
+		/// If true, the transaction builder tries to shuffle inputs
+		/// </summary>
+		public bool ShuffleInputs
+		{
+			get; set;
+		} = true;
+
+		/// <summary>
+		/// If true, the transaction builder tries to shuffles outputs
+		/// </summary>
+		public bool ShuffleOutputs
+		{
+			get; set;
+		} = true;
+
+		/// <summary>
 		/// If true and the transaction has two outputs sending to the same scriptPubKey, those will be merged into a single output. (Default: true)
 		/// </summary>
 		public bool MergeOutputs
@@ -849,15 +870,17 @@ namespace NBitcoin
 			return this;
 		}
 
-		public TransactionBuilder AddCoins(params ICoin[] coins)
+		public TransactionBuilder AddCoins(params ICoin?[] coins)
 		{
-			return AddCoins((IEnumerable<ICoin>)coins);
+			return AddCoins((IEnumerable<ICoin?>)coins);
 		}
 
-		public TransactionBuilder AddCoins(IEnumerable<ICoin> coins)
+		public TransactionBuilder AddCoins(IEnumerable<ICoin?> coins)
 		{
 			foreach (var coin in coins)
 			{
+				if (coin is null)
+					continue;
 				if (coin.TxOut.ScriptPubKey.IsUnspendable)
 					throw new InvalidOperationException("You cannot add an unspendable coin");
 				CurrentGroup.Coins.AddOrReplace(coin.Outpoint, coin);
@@ -1289,7 +1312,7 @@ namespace NBitcoin
 			return this;
 		}
 
-		public bool TrySignInput(Transaction transaction, uint index, SigningOptions? signingOptions, out TransactionSignature? signature)
+		public bool TrySignInput(Transaction transaction, uint index, SigningOptions? signingOptions, [MaybeNullWhen(false)] out TransactionSignature signature)
 		{
 			signingOptions ??= new SigningOptions();
 			if (transaction == null)
@@ -1558,7 +1581,6 @@ namespace NBitcoin
 			var tx = psbt.GetOriginalTransaction();
 			psbt.AddCoins(tx.Inputs.AsIndexedInputs()
 				.Select(i => this.FindSignableCoin(i) ?? this.FindCoin(i.PrevOut))
-				.Where(c => c != null)
 				.ToArray());
 
 			psbt.AddScripts(_ScriptPubKeyToRedeem.Values.ToArray());
@@ -1631,16 +1653,18 @@ namespace NBitcoin
 
 				var builderList = group.Builders.ToList();
 				ctx.AddChangeTxOut = SetChange;
-				BuildTransaction(ctx, group, builderList, group.Coins.Values.OfType<Coin>().Where(IsEconomical));
+				BuildTransaction(ctx, group, builderList, group.Coins.Values.OfType<Coin>()
+																			.Where(c => c.Amount >= ctx.CurrentGroupContext.MinValue)
+																			.Where(IsEconomical));
 			}
 
 			if (ShuffleRandom != null)
 			{
-				if (ctx.CanShuffleInputs)
+				if (ShuffleInputs && ctx.CanShuffleInputs)
 					Utils.Shuffle(ctx.Transaction.Inputs,
 								_CompletedTransaction is null ? 0 : _CompletedTransaction.Inputs.Count,
 								ShuffleRandom);
-				if (ctx.CanShuffleOutputs)
+				if (ShuffleOutputs && ctx.CanShuffleOutputs)
 					Utils.Shuffle(ctx.Transaction.Outputs,
 								_CompletedTransaction is null ? 0 : _CompletedTransaction.Outputs.Count,
 								ShuffleRandom);
@@ -1657,7 +1681,7 @@ namespace NBitcoin
 					ctx.Transaction.Outputs.AddRange(collapsedOutputs);
 				}
 			}
-			ctx.InsertOpenAssetMarker(); 
+			ctx.InsertOpenAssetMarker();
 			AfterBuild(ctx.Transaction);
 
 			// The first pass always have SizeFee to 0 because we can't
@@ -1701,6 +1725,26 @@ namespace NBitcoin
 				}
 			}
 
+			// The transaction is too big and would never be accepted by policy rules.
+			// We try to repass by removing small value inputs.
+			if (estimatedSize > MAX_TX_VSIZE)
+			{
+				needRepass = true;
+				int inputsToDelete = ctx.Transaction.Inputs.Count - ((MAX_TX_VSIZE * ctx.Transaction.Inputs.Count) / estimatedSize);
+				var minValue = ctx.Selection.OfType<Coin>()
+										.OrderBy(c => c.Amount)
+										.Skip(inputsToDelete - 1)
+										.Select(c => c.Amount + Money.Satoshis(1))
+										.First();
+				foreach (var group in _BuilderGroups)
+				{
+					ctx.SetGroup(group);
+					// We need to recalculate the SizeFee
+					ctx.CurrentGroupContext.SizeFee = Money.Zero;
+					ctx.CurrentGroupContext.MinValue = minValue;
+				}
+			}
+
 			if (needRepass)
 			{
 				var newCtx = new TransactionBuildingContext(this);
@@ -1709,11 +1753,12 @@ namespace NBitcoin
 					newCtx.SetGroup(group);
 					ctx.SetGroup(group);
 					newCtx.CurrentGroupContext.SizeFee = ctx.CurrentGroupContext.SizeFee;
+					newCtx.CurrentGroupContext.MinValue = ctx.CurrentGroupContext.MinValue;
 				}
 				ctx = newCtx;
 				goto retry;
 			}
-			
+
 
 			if (sign)
 			{
@@ -1761,7 +1806,7 @@ namespace NBitcoin
 				group.sendAllToChange ? unconsumed :
 				selectionTarget.CompareTo(zero) <= 0 ? new ICoin[0] :
 				CoinSelector.Select(unconsumed, selectionTarget)?.ToArray();
-			
+
 			if (selection == null)
 				throw new NotEnoughFundsException("Not enough funds to cover the target",
 					group.Name,
@@ -1775,7 +1820,7 @@ namespace NBitcoin
 					change.Negate()
 				);
 
-			
+
 			if (change.CompareTo(zero) > 0)
 			{
 				var changeScript = group.ChangeScript[(int)ctx.ChangeType];
@@ -1827,14 +1872,30 @@ namespace NBitcoin
 			return tx;
 		}
 
+		/// <summary>
+		/// Clone the transaction passed as parameter and sign it
+		/// </summary>
+		/// <param name="transaction">The transaction</param>
+		/// <returns>The signed transaction</returns>
 		public Transaction SignTransaction(Transaction transaction)
 		{
 			return SignTransaction(transaction, SigHash.All);
 		}
+		/// <summary>
+		/// Sign the transaction passed as parameter
+		/// </summary>
+		/// <param name="transaction">The transaction</param>
+		/// <returns>The transaction object as the one passed as parameter</returns>
 		public Transaction SignTransactionInPlace(Transaction transaction)
 		{
 			return SignTransactionInPlace(transaction, SigHash.All);
 		}
+		/// <summary>
+		/// Sign the transaction passed as parameter
+		/// </summary>
+		/// <param name="transaction">The transaction</param>
+		/// <param name="signingOptions">The signing options</param>
+		/// <returns>The transaction object as the one passed as parameter</returns>
 		public Transaction SignTransactionInPlace(Transaction transaction, SigningOptions? signingOptions)
 		{
 			signingOptions ??= new SigningOptions();
@@ -1855,7 +1916,12 @@ namespace NBitcoin
 			var fee = tx.GetFee(this.FindSpentCoins(tx));
 			return new FeeRate(fee, vSize);
 		}
-
+		/// <summary>
+		/// Sign the transaction passed as parameter
+		/// </summary>
+		/// <param name="transaction">The transaction</param>
+		/// <param name="sigHash">The sighash to sign</param>
+		/// <returns>The transaction object as the one passed as parameter</returns>
 		public Transaction SignTransactionInPlace(Transaction transaction, SigHash sigHash)
 		{
 			return SignTransactionInPlace(transaction, Normalize(new SigningOptions(sigHash)));
@@ -2511,6 +2577,8 @@ namespace NBitcoin
 
 
 		private readonly List<BuilderExtension> _Extensions = new List<BuilderExtension>();
+		private const int MAX_TX_VSIZE = 100_000;
+
 		public List<BuilderExtension> Extensions
 		{
 			get

@@ -39,6 +39,7 @@ namespace NBitcoin.Altcoins
 		public static Commutercoin Commutercoin { get; } = Commutercoin.Instance;
 		public static Qtum Qtum { get; } = Qtum.Instance;
 		public static MonetaryUnit MonetaryUnit { get; } = MonetaryUnit.Instance;
+		public static LBRYCredits LBRYCredits { get; } = LBRYCredits.Instance;
 
 		public static IEnumerable<INetworkSet> GetAll()
 		{
@@ -73,6 +74,7 @@ namespace NBitcoin.Altcoins
 			yield return MonetaryUnit;
 			yield return DogeCash;
 			yield return Commutercoin;
+			yield return LBRYCredits;
 		}
 	}
 }

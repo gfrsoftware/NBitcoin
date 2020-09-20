@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -31,7 +32,18 @@ namespace NBitcoin.Secp256k1
 	{
 		bool TryGetNonce(Span<byte> nonce32, ReadOnlySpan<byte> msg32, ReadOnlySpan<byte> key32, ReadOnlySpan<byte> algo16, uint counter);
 	}
+
 #if SECP256K1_LIB
+	public
+#else
+	internal
+#endif
+	interface INonceFunctionHardened
+	{
+		bool TryGetNonce(Span<byte> nonce32, ReadOnlySpan<byte> msg32, ReadOnlySpan<byte> key32, ReadOnlySpan<byte> xonly_pk32, ReadOnlySpan<byte> algo16);
+	}
+#if SECP256K1_LIB
+
 	public
 #endif
 	class PrecomputedNonceFunction : INonceFunction
@@ -120,7 +132,11 @@ namespace NBitcoin.Secp256k1
 #endif
 		readonly Context ctx;
 
-		internal static bool TryCreateFromDer(ReadOnlySpan<byte> privkey, Context ctx, out ECPrivKey? result)
+		public static bool TryCreateFromDer(ReadOnlySpan<byte> privkey, [MaybeNullWhen(false)] out ECPrivKey result)
+		{
+			return TryCreateFromDer(privkey, null, out result);
+		}
+		public static bool TryCreateFromDer(ReadOnlySpan<byte> privkey, Context? ctx, [MaybeNullWhen(false)] out ECPrivKey result)
 		{
 			result = null;
 			Span<byte> out32 = stackalloc byte[32];
@@ -177,7 +193,39 @@ namespace NBitcoin.Secp256k1
 			result = new ECPrivKey(s, ctx, false);
 			return true;
 		}
-		internal ECPrivKey(in Scalar scalar, Context ctx, bool enforceCheck)
+
+		public static bool TryCreate(ReadOnlySpan<byte> b32, [MaybeNullWhen(false)] out ECPrivKey key)
+		{
+			return TryCreate(b32, null, out key);
+		}
+		public static bool TryCreate(ReadOnlySpan<byte> b32, Context? context, [MaybeNullWhen(false)] out ECPrivKey key)
+		{
+			var s = new Scalar(b32, out var overflow);
+			if (overflow != 0 || s.IsZero)
+			{
+				key = null;
+				return false;
+			}
+			key = new ECPrivKey(s, context, false);
+			return true;
+		}
+
+		public static bool TryCreate(in Scalar s, [MaybeNullWhen(false)] out ECPrivKey key)
+		{
+			return TryCreate(s, null, out key);
+		}
+		public static bool TryCreate(in Scalar s, Context? context, [MaybeNullWhen(false)] out ECPrivKey key)
+		{
+			if (s.IsOverflow || s.IsZero)
+			{
+				key = null;
+				return false;
+			}
+			key = new ECPrivKey(s, context, false);
+			return true;
+		}
+
+		internal ECPrivKey(in Scalar scalar, Context? ctx, bool enforceCheck)
 		{
 			if (enforceCheck)
 			{
@@ -253,7 +301,7 @@ namespace NBitcoin.Secp256k1
 			Scalar term;
 			ECPrivKey seckey;
 			bool ret;
-			int overflow = 0;
+			int overflow;
 			term = new Scalar(tweak, out overflow);
 
 			Scalar sec = this.sec;
@@ -810,11 +858,10 @@ namespace NBitcoin.Secp256k1
 			if (tweak.Length != 32)
 				return false;
 			Scalar factor;
-			bool ret = false;
-			int overflow = 0;
+			int overflow;
 			factor = new Scalar(tweak, out overflow);
 			var sec = this.sec;
-			ret = overflow == 0 && secp256k1_eckey_privkey_tweak_mul(ref sec, factor);
+			bool ret = overflow == 0 && secp256k1_eckey_privkey_tweak_mul(ref sec, factor);
 			if (ret)
 			{
 				tweakedPrivkey = new ECPrivKey(sec, ctx, false);

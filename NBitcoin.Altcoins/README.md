@@ -13,6 +13,7 @@ Currently supported altcoins are:
 * Dystem
 * Feathercoin
 * Groestlcoin
+* LBRYCredits
 * Liquid
 * Litecoin
 * Monacoin

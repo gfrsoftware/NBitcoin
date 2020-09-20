@@ -404,7 +404,22 @@ namespace NBitcoin.Tests
 			StartAsync().Wait();
 		}
 
-		readonly NetworkCredential creds;
+		NetworkCredential creds;
+		public NetworkCredential RPCCredentials
+		{
+			get
+			{
+				if (CookieAuth)
+					throw new InvalidOperationException("CookieAuth should be false");
+				return creds;
+			}
+			set
+			{
+				if (CookieAuth)
+					throw new InvalidOperationException("CookieAuth should be false");
+				creds = value;
+			}
+		}
 		public RPCClient CreateRPCClient()
 		{
 			return new RPCClient(GetRPCAuth(), RPCUri, Network);
@@ -641,55 +656,6 @@ namespace NBitcoin.Tests
 			public uint256 Hash = null;
 			public Transaction Transaction = null;
 			public List<TransactionNode> DependsOn = new List<TransactionNode>();
-		}
-
-		private List<Transaction> Reorder(List<Transaction> transactions)
-		{
-			if (transactions.Count == 0)
-				return transactions;
-			var result = new List<Transaction>();
-			var dictionary = transactions.ToDictionary(t => t.GetHash(), t => new TransactionNode(t));
-			foreach (var transaction in dictionary.Select(d => d.Value))
-			{
-				foreach (var input in transaction.Transaction.Inputs)
-				{
-					var node = dictionary.TryGet(input.PrevOut.Hash);
-					if (node != null)
-					{
-						transaction.DependsOn.Add(node);
-					}
-				}
-			}
-			while (dictionary.Count != 0)
-			{
-				foreach (var node in dictionary.Select(d => d.Value).ToList())
-				{
-					foreach (var parent in node.DependsOn.ToList())
-					{
-						if (!dictionary.ContainsKey(parent.Hash))
-							node.DependsOn.Remove(parent);
-					}
-					if (node.DependsOn.Count == 0)
-					{
-						result.Add(node.Transaction);
-						dictionary.Remove(node.Hash);
-					}
-				}
-			}
-			return result;
-		}
-
-		private BitcoinSecret GetFirstSecret(RPCClient rpc)
-		{
-			if (MinerSecret != null)
-				return MinerSecret;
-			var dest = rpc.ListSecrets().FirstOrDefault();
-			if (dest == null)
-			{
-				var address = rpc.GetNewAddress();
-				dest = rpc.DumpPrivKey(address);
-			}
-			return dest;
 		}
 
 		public void Restart()
