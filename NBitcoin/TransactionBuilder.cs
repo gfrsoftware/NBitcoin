@@ -43,6 +43,11 @@ namespace NBitcoin
 			SigHash = sigHash;
 			EnforceLowR = true;
 		}
+		public SigningOptions(SigHash sigHash, bool useLowR)
+		{
+			SigHash = sigHash;
+			EnforceLowR = useLowR;
+		}
 
 		/// <summary>
 		/// What are we signing (default: SigHash.All)
@@ -339,7 +344,7 @@ namespace NBitcoin
 			public TransactionSignature Sign(PubKey pubKey)
 			{
 				var key = ctx.FindKey(pubKey);
-				var sig = txIn.Sign(key, coin, signingOptions.SigHash, signingOptions.EnforceLowR);
+				var sig = txIn.Sign(key, coin, signingOptions);
 				EmittedSignatures.Add(new SignatureEvent(key.PubKey, sig, txIn));
 				return sig;
 			}
@@ -1142,13 +1147,13 @@ namespace NBitcoin
 		[Obsolete("Transaction builder is automatically shuffled")]
 		public TransactionBuilder Shuffle()
 		{
-			DoShuffle();
+			DoShuffleGroups();
 			return this;
 		}
 
-		private void DoShuffle()
+		private void DoShuffleGroups()
 		{
-			if (ShuffleRandom != null)
+			if (ShuffleRandom != null && ShuffleOutputs)
 			{
 				Utils.Shuffle(_BuilderGroups, ShuffleRandom);
 				foreach (var group in _BuilderGroups)
@@ -1618,7 +1623,7 @@ namespace NBitcoin
 		public Transaction BuildTransaction(bool sign, SigningOptions signingOptions)
 		{
 			int totalRepass = 5;
-			DoShuffle();
+			DoShuffleGroups();
 			TransactionBuildingContext ctx = new TransactionBuildingContext(this);
 			retry:
 			if (_CompletedTransaction != null)
@@ -2189,7 +2194,7 @@ namespace NBitcoin
 				var coin = FindSignableCoin(txin) ?? FindCoin(txin.PrevOut);
 				if (coin == null)
 					throw CoinNotFound(txin);
-				if (coin.GetHashVersion() == HashVersion.Witness)
+				if (!coin.IsMalleable)
 					hasWitness = true;
 				else
 					nonWitnessCount++;
@@ -2258,7 +2263,7 @@ namespace NBitcoin
 
 			if (scriptSigSize == -1)
 				scriptSigSize += coin.TxOut.ScriptPubKey.Length; //Using heurestic to approximate size of unknown scriptPubKey
-			if (coin.GetHashVersion() == HashVersion.Witness)
+			if (!coin.IsMalleable)
 			{
 				baseSize += new Protocol.VarInt((ulong)p2shPushRedeemSize).GetSerializedSize();
 				witSize += scriptSigSize + new Protocol.VarInt((ulong)(scriptSigSize + segwitPushRedeemSize)).GetSerializedSize();
@@ -2336,7 +2341,7 @@ namespace NBitcoin
 			ScriptCoin? scriptCoin = coin as ScriptCoin;
 
 			Script? signatures = null;
-			if (coin.GetHashVersion() == HashVersion.Witness)
+			if (!coin.IsMalleable)
 			{
 				signatures = txIn.WitScript;
 				if (scriptCoin != null)
@@ -2357,7 +2362,7 @@ namespace NBitcoin
 
 			signatures = CombineScriptSigs(coin, scriptSig, signatures);
 
-			if (coin.GetHashVersion() == HashVersion.Witness)
+			if (!coin.IsMalleable)
 			{
 				txIn.WitScript = signatures;
 				if (scriptCoin != null)

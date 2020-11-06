@@ -306,7 +306,7 @@ namespace NBitcoin
 				}
 			}
 			if (Parent.Network.Consensus.NeverNeedPreviousTxForSigning ||
-				coin.GetHashVersion() == HashVersion.Witness || witness_script != null)
+				!coin.IsMalleable || witness_script != null)
 			{
 				witness_utxo = coin.TxOut;
 				non_witness_utxo = null;
@@ -409,6 +409,24 @@ namespace NBitcoin
 			this.sighash_type = null;
 		}
 
+		/// <summary>
+		/// Represent this input as a coin that can be used for signing operations.
+		/// Returns null if <see cref="WitnessUtxo"/>, <see cref="NonWitnessUtxo"/> are not set
+		/// or if <see cref="PSBTCoin.WitnessScript"/> or <see cref="PSBTCoin.RedeemScript"/> are missing but needed.
+		/// </summary>
+		/// <returns>The input as a signable coin</returns>
+		public new Coin? GetSignableCoin()
+		{
+			return base.GetSignableCoin();
+		}
+
+		/// <summary>
+		/// Represent this input as a coin that can be used for signing operations.
+		/// Returns null if <see cref="WitnessUtxo"/>, <see cref="NonWitnessUtxo"/> are not set
+		/// or if <see cref="PSBTCoin.WitnessScript"/> or <see cref="PSBTCoin.RedeemScript"/> are missing but needed.
+		/// </summary>
+		/// <param name="error">If it is not possible to retrieve the signable coin, a human readable reason.</param>
+		/// <returns>The input as a signable coin</returns>
 		public override Coin? GetSignableCoin(out string? error)
 		{
 			if (witness_utxo == null && non_witness_utxo == null)
@@ -483,11 +501,11 @@ namespace NBitcoin
 					errors.Add(new PSBTError(Index, "Input finalized, but witness script is not null"));
 			}
 
-			if (witness_script != null && witness_utxo == null)
-				errors.Add(new PSBTError(Index, "witness script present but no witness utxo"));
+			if (witness_script != null && witness_utxo is null && non_witness_utxo is null)
+				errors.Add(new PSBTError(Index, "witness script present but not witness_utxo or non_witness_utxo"));
 
-			if (final_script_witness != null && witness_utxo == null)
-				errors.Add(new PSBTError(Index, "final witness script present but no witness utxo"));
+			if (final_script_witness != null && witness_utxo is null && non_witness_utxo is null)
+				errors.Add(new PSBTError(Index, "final witness script present but not witness_utxo or non_witness_utxo"));
 
 			if (NonWitnessUtxo != null)
 			{
@@ -916,7 +934,7 @@ namespace NBitcoin
 				return false;
 
 			if (Parent.Network.Consensus.NeverNeedPreviousTxForSigning ||
-				coin.GetHashVersion() == HashVersion.Witness)
+				!coin.IsMalleable)
 			{
 				if (WitnessUtxo == null)
 				{
@@ -929,6 +947,11 @@ namespace NBitcoin
 			return false;
 		}
 
+		/// <summary>
+		/// Represent this input as a coin.
+		/// Returns null if <see cref="WitnessUtxo"/> or <see cref="NonWitnessUtxo"/> is not set.
+		/// </summary>
+		/// <returns>The input as a coin</returns>
 		public override Coin? GetCoin()
 		{
 			var txout = GetTxOut();

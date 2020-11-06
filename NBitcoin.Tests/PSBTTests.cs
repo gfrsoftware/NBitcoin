@@ -120,6 +120,29 @@ namespace NBitcoin.Tests
 		}
 		[Fact]
 		[Trait("UnitTest", "UnitTest")]
+		public void AddCoinsShouldNotRemoveInfoFromPSBT()
+		{
+			var psbt = PSBT.Parse("cHNidP8BAMUCAAAAAjm0TK7iZu3RS16BLuYL/CR9HY2eRlQGVx1xewU1T6xAAAAAAAD/////PihXS4IEUUJG1EFDdW5EFGD5OzzgIw6rEhOqlpqitZwAAAAAAP////8DUsXrCwAAAAAiACBVmZAFkOU/PQ6UIMllsbJV7/ifdH/k6CcJKv1Gl9YgiOHc9QUAAAAAFgAUIGAQWuW00fyrWEvq9QZQ7AlcoTQt3PUFAAAAABYAFO4+pJ5Q9U7MVK33/5A1rt6OUFzxAAAAAAABAR8AwusLAAAAABYAFGqIBjv6pJ8EyEQk21oyoAyCYPu4AAEBIADC6wsAAAAAF6kUL7E4PUEaMOH84KTEW0txEy9hSw2HAQQiACANm5rxqXLoh2DLZbduH7R6USCVuyMAEqh+2x3OYLp7gQAAAAA=", Network.Main);
+			Assert.True(psbt.TryGetFinalizedHash(out var actualHash));
+			Assert.Equal(new uint256("5d7bd33c258e0d7a1ac806304d9ab1b518cd0ab194f01248be9b52c704cc5fb7"), actualHash);
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
+		public void CalculateFinalizedHashCorrectly()
+		{
+			var psbt = PSBT.Parse("cHNidP8BAMUCAAAAAjm0TK7iZu3RS16BLuYL/CR9HY2eRlQGVx1xewU1T6xAAAAAAAD/////PihXS4IEUUJG1EFDdW5EFGD5OzzgIw6rEhOqlpqitZwAAAAAAP////8DUsXrCwAAAAAiACBVmZAFkOU/PQ6UIMllsbJV7/ifdH/k6CcJKv1Gl9YgiOHc9QUAAAAAFgAUIGAQWuW00fyrWEvq9QZQ7AlcoTSm2/UFAAAAABYAFO4+pJ5Q9U7MVK33/5A1rt6OUFzxAAAAAAABAFICAAAAAbNOQ0W2oHIm8aqR8lFQlldP1gme7xzZiFyNBp5RmM92AAAAAAAAAAAAAQDC6wsAAAAAFgAUaogGO/qknwTIRCTbWjKgDIJg+7gAAAAAAAEBIADC6wsAAAAAF6kUL7E4PUEaMOH84KTEW0txEy9hSw2HAQBTAgAAAAGzTkNFtqByJvGqkfJRUJZXT9YJnu8c2YhcjQaeUZjPdgAAAAAAAAAAAAEAwusLAAAAABepFC+xOD1BGjDh/OCkxFtLcRMvYUsNhwAAAAABBCIAIA2bmvGpcuiHYMtlt24ftHpRIJW7IwASqH7bHc5gunuBAAAAAA==", Network.Main);
+			psbt.AssertSanity();
+			Assert.True(psbt.TryGetFinalizedHash(out var actualHash));
+			Assert.Equal(new uint256("de509e9a6873ca54953a1e69df66bdda3a9e9b296cb3bbeddaffad61a2a25721"), actualHash);
+
+			// This PSBT is finalized, but missing the FinalScriptSig while being P2SH, so there must be something missing
+			psbt = PSBT.Parse("cHNidP8BAMUCAAAAAjm0TK7iZu3RS16BLuYL/CR9HY2eRlQGVx1xewU1T6xAAAAAAAD/////PihXS4IEUUJG1EFDdW5EFGD5OzzgIw6rEhOqlpqitZwAAAAAAP////8DUsXrCwAAAAAiACBVmZAFkOU/PQ6UIMllsbJV7/ifdH/k6CcJKv1Gl9YgiOHc9QUAAAAAFgAUIGAQWuW00fyrWEvq9QZQ7AlcoTSm2/UFAAAAABYAFO4+pJ5Q9U7MVK33/5A1rt6OUFzxAAAAAAABAFICAAAAAbNOQ0W2oHIm8aqR8lFQlldP1gme7xzZiFyNBp5RmM92AAAAAAAAAAAAAQDC6wsAAAAAFgAUaogGO/qknwTIRCTbWjKgDIJg+7gAAAAAAQhrAkcwRAIgTtzpX90hQU00ur2DPXOZkBMXjNrEW+76cQkr6k1kntkCIE2RVauwzntgDCIjD8oiy3Aa3vd+G1POBgxKHTbLxaYoASECAclP4nUttStBOIr13akOh+b4PaX1mtGAjNLCNZmv/AsAAQBTAgAAAAGzTkNFtqByJvGqkfJRUJZXT9YJnu8c2YhcjQaeUZjPdgAAAAAAAAAAAAEAwusLAAAAABepFC+xOD1BGjDh/OCkxFtLcRMvYUsNhwAAAAABCNoEAEcwRAIgAn6VAAmlfVenn81OzH5bTQvqsWGmgDLNFOmDNiPU668CIB2lAu7gf2vXOuHARm1XOVRn9ApmwXHUWk2VnpI4qarGAUcwRAIgYbF54sTODDXxyu1hgFeDgFnj8vIiT32QIO5wYfM4KK8CIA2vIMATbqXK14uL00cX7VOgizSraeDvnPHnMKU1M72oAUdSIQJX9gQalUVw7G/bOOig6t7gy8aZrhPkuqDXVYOI6urtgCECKpV4nSq48v2Ruf+0l87cbH9aWBEsHUcO9U6QL5Q7iH9SrgAAAAA=", Network.Main);
+			Assert.False(psbt.TryGetFinalizedHash(out actualHash));
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
 		public void ShouldPreserveOriginalTxPropertyAsPossible()
 		{
 			var keys = new Key[] { new Key(), new Key(), new Key() }.Select(k => k.GetWif(Network.RegTest)).ToArray();
@@ -289,6 +312,46 @@ namespace NBitcoin.Tests
 				var psbt = PSBT.Parse(i, Network.Main);
 				Assert.Throws<PSBTException>(() => psbt.SignWithKeys(new Key()));
 			}
+		}
+
+		[Fact]
+		[Trait("UnitTest", "UnitTest")]
+		public void OutputKeyPathCorrect()
+		{
+			var keys = Enumerable.Range(0, 5).Select(_ => new ExtKey()).ToArray();
+
+			var accountKey = new KeyPath("84'/0'/0'");
+			var accountKeys = keys.Select(k => k.Derive(accountKey).Neuter()).ToArray();
+			var depositPath = new KeyPath("0/0");
+			var changePath = new KeyPath("1/0");
+			var depositRedeem = PayToMultiSigTemplate.Instance.GenerateScriptPubKey(2, accountKeys.Select(k => k.Derive(depositPath).PubKey).ToArray());
+			var changeRedeem = PayToMultiSigTemplate.Instance.GenerateScriptPubKey(2, accountKeys.Select(k => k.Derive(changePath).PubKey).ToArray());
+
+			var c1 = CreateCoin(depositRedeem);
+
+			var builder = Network.RegTest.CreateTransactionBuilder();
+			builder.ShuffleOutputs = false;
+			builder.AddCoins(c1);
+			builder.SendEstimatedFees(new FeeRate(1.0m));
+			builder.Send(BitcoinAddress.Create("bc1qeef3jecqytj8j2xnjzduf5mu9c6jsqwd4hmvyv2zw8hzpf7a47nqrws5sn", Network.Main), Money.Coins(0.2m));
+			builder.SetChange(changeRedeem.WitHash.ScriptPubKey);
+			var psbt = builder.BuildPSBT(false);
+			psbt.AddScripts(changeRedeem);
+			foreach (var k in accountKeys)
+			{
+				psbt.AddKeyPath(k, depositPath);
+				psbt.AddKeyPath(k, changePath);
+			}
+			Assert.Empty(psbt.Outputs[0].HDKeyPaths);
+			Assert.NotEmpty(psbt.Outputs[1].HDKeyPaths);
+		}
+
+		int i = 0;
+		private ScriptCoin CreateCoin(Script redeem)
+		{
+			var outpoint = new OutPoint(uint256.Zero, i++);
+			var txout = new TxOut(Money.Coins(1.0m), redeem.WitHash.ScriptPubKey);
+			return new ScriptCoin(outpoint, txout, redeem);
 		}
 
 		[Fact]
